@@ -2109,44 +2109,142 @@ model RefrasynthPcReport {
 }
 
 model RefrasynthPaymentHistory {
-  id                      Int       @id @default(autoincrement())
-  timestamp               DateTime? @map("timestamp")
-  apPaymentNumber         String?   @map("ap_payment_number")
-  status                  String?   @map("status")
-  uniqueNumber            String?   @map("unique_number")
-  fmsName                 String?   @map("fms_name")
-  payTo                   String?   @map("pay_to")
-  amountToBePaid          String?   @map("amount_to_be_paid")
-  remarks                 String?   @map("remarks")
-  anyAttachments          String?   @map("any_attachments")
-  timestamp1              DateTime? @map("timestamp1")
-  planned                 String?   @map("planned")
-  paymentTerms            String?   @map("payment_terms")
-  indentNo                String?   @map("indent_no")
-  poNumber                String?   @map("po_number")
-  productName             String?   @map("product_name")
-  liftNumber              String?   @map("lift_number")
-  billStatus              String?   @map("bill_status")
-  billNo                  String?   @map("bill_no")
-  qty                     String?   @map("qty")
-  vendorName              String?   @map("vendor_name")
-  typeOfBill              String?   @map("type_of_bill")
-  billAmount              String?   @map("bill_amount")
-  discountAmount          String?   @map("discount_amount")
-  paymentType             String?   @map("payment_type")
-  advanceAmountIfAny      String?   @map("advance_amount_if_any")
-  photoOfBill             String?   @map("photo_of_bill")
-  transportationInclude   String?   @map("transportation_include")
-  transporterName         String?   @map("transporter_name")
-  amount                  String?   @map("amount")
-  leadTimeToLiftMaterial  String?   @map("lead_time_to_lift_material")
-  vehicleNo               String?   @map("vehicle_no")
-  driverName              String?   @map("driver_name")
-  driverMobileNo          String?   @map("driver_mobile_no")
-  billRemark              String?   @map("bill_remark")
-  createdAt               DateTime  @default(now()) @map("created_at")
-  updatedAt               DateTime? @map("updated_at")
+  id                     Int       @id @default(autoincrement())
+  timestamp              DateTime? @map("timestamp")
+  apPaymentNumber        String?   @map("ap_payment_number")
+  status                 String?   @map("status")
+  uniqueNumber           String?   @map("unique_number")
+  fmsName                String?   @map("fms_name")
+  payTo                  String?   @map("pay_to")
+  amountToBePaid         String?   @map("amount_to_be_paid")
+  remarks                String?   @map("remarks")
+  anyAttachments         String?   @map("any_attachments")
+  timestamp1             DateTime? @map("timestamp1")
+  planned                String?   @map("planned")
+  paymentTerms           String?   @map("payment_terms")
+  indentNo               String?   @map("indent_no")
+  poNumber               String?   @map("po_number")
+  productName            String?   @map("product_name")
+  liftNumber             String?   @map("lift_number")
+  billStatus             String?   @map("bill_status")
+  billNo                 String?   @map("bill_no")
+  qty                    String?   @map("qty")
+  vendorName             String?   @map("vendor_name")
+  typeOfBill             String?   @map("type_of_bill")
+  billAmount             String?   @map("bill_amount")
+  discountAmount         String?   @map("discount_amount")
+  paymentType            String?   @map("payment_type")
+  advanceAmountIfAny     String?   @map("advance_amount_if_any")
+  photoOfBill            String?   @map("photo_of_bill")
+  transportationInclude  String?   @map("transportation_include")
+  transporterName        String?   @map("transporter_name")
+  amount                 String?   @map("amount")
+  leadTimeToLiftMaterial String?   @map("lead_time_to_lift_material")
+  vehicleNo              String?   @map("vehicle_no")
+  driverName             String?   @map("driver_name")
+  driverMobileNo         String?   @map("driver_mobile_no")
+  billRemark             String?   @map("bill_remark")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime? @map("updated_at")
 
   @@map("refrasynth_payment_history")
 }
 
+model RmSalesParty {
+  id        Int       @id @default(autoincrement())
+  name      String    @unique @map("name")
+  firmName  String?   @map("firm_name")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime? @map("updated_at")
+
+  @@map("rmsales_party")
+}
+
+model RmSalesProduct {
+  id           Int               @id @default(autoincrement())
+  name         String            @unique @map("name")
+  unit         String            @default("MT") @map("unit")
+  availableQty Float             @default(0) @map("available_qty")
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime?         @map("updated_at")
+  inventory    RmSalesInventory?
+  orders       RmSalesOrder[]
+
+  @@map("rmsales_product")
+}
+
+model RmSalesInventory {
+  id           Int            @id @default(autoincrement())
+  productId    Int            @unique @map("product_id")
+  availableQty Float          @default(0) @map("available_qty")
+  soldQty      Float          @default(0) @map("sold_qty")
+  updatedAt    DateTime?      @map("updated_at")
+  product      RmSalesProduct @relation(fields: [productId], references: [id])
+
+  @@map("rmsales_inventory")
+}
+
+model RmSalesOrder {
+  id            Int               @id @default(autoincrement())
+  orderNo       String            @unique @map("order_no")
+  firmName      String            @map("firm_name")
+  partyName     String            @map("party_name")
+  productId     Int?              @map("product_id")
+  productName   String            @map("product_name")
+  qty           Float             @map("qty")
+  rate          Float             @map("rate")
+  transportType String            @map("transport_type")
+  dispatchDate  DateTime          @map("dispatch_date")
+  poCopyUrl     String?           @map("po_copy_url")
+  status        String            @default("Pending Approval") @map("status")
+  approvedBy    String?           @map("approved_by")
+  approvedAt    DateTime?         @map("approved_at")
+  createdAt     DateTime          @default(now()) @map("created_at")
+  updatedAt     DateTime?         @map("updated_at")
+  product       RmSalesProduct?   @relation(fields: [productId], references: [id])
+  logistics     RmSalesLogistics?
+  invoice       RmSalesInvoice?
+
+  @@map("rmsales_order")
+}
+
+model RmSalesLogistics {
+  id              Int          @id @default(autoincrement())
+  orderId         Int          @unique @map("order_id")
+  transporterName String       @map("transporter_name")
+  truckNo         String       @map("truck_no")
+  biltyNo         String       @map("bilty_no")
+  actualTruckQty  Float        @map("actual_truck_qty")
+  biltyCopyUrl    String?      @map("bilty_copy_url")
+  rateType        String       @map("rate_type")
+  rateValue       Float        @map("rate_value")
+  freightAmount   Float        @map("freight_amount")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime?    @map("updated_at")
+  order           RmSalesOrder @relation(fields: [orderId], references: [id])
+
+  @@map("rmsales_logistics")
+}
+
+model RmSalesInvoice {
+  id             Int          @id @default(autoincrement())
+  orderId        Int          @unique @map("order_id")
+  invoiceNo      String       @unique @map("invoice_no")
+  invoiceCopyUrl String?      @map("invoice_copy_url")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime?    @map("updated_at")
+  order          RmSalesOrder @relation(fields: [orderId], references: [id])
+
+  @@map("rmsales_invoice")
+}
+
+model RmSalesActivityLog {
+  id        Int      @id @default(autoincrement())
+  userRole  String?  @map("user_role")
+  userName  String?  @map("user_name")
+  action    String   @map("action")
+  details   Json?    @map("details")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("rmsales_activity_log")
+}
