@@ -1,0 +1,12 @@
+node_modules
+npm-debug.log*
+.git
+.gitignore
+Dockerfile
+.dockerignore
+# Secrets/config are injected at runtime by docker-compose (env_file +
+# environment), so never bake .env into the image.
+.env
+.env.*
+*.md
+.vscode

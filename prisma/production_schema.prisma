@@ -1,0 +1,347 @@
+// ============================================================================
+// PRODUCTION SYSTEM — per-page schema, same conventions as PURCHASE/ORDER above
+// ============================================================================
+
+// --- Root: Orders + Planning (ORDERS + PRODUCTION pages merged) ------------
+
+model ProductionOrder {
+  id                    String    @id @default(uuid())
+  deliveryOrderNo       String?   @map("delivery_order_no")
+  firmName              String?   @map("firm_name")
+  partyName             String?   @map("party_name")
+  productName           String?   @map("product_name")
+  orderQuantity         Float?    @map("order_quantity")
+  expectedDeliveryDate  DateTime? @map("expected_delivery_date")
+  priority              String?   @map("priority")
+  crmName               String?   @map("crm_name")
+  orderCancelled        Boolean   @default(false) @map("order_cancelled")
+  quantityDelivered     Float?    @map("quantity_delivered")
+  quantityInStock       Float?    @map("quantity_in_stock")
+  status                String?   @map("status")
+  reason                String?   @map("reason")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime? @map("updated_at")
+
+  jobCards   ProductionJobCard[]
+  costings   ProductionCosting[]
+  fullKitting ProductionFullKitting?
+
+  @@map("production_orders")
+}
+
+// --- Job Cards (JOB-CARDS page) — one order can spawn several job cards ----
+
+model ProductionJobCard {
+  id                String    @id @default(uuid())
+  orderId           String?   @map("order_id")
+  order             ProductionOrder? @relation(fields: [orderId], references: [id])
+  jobCardNo         String?   @map("job_card_no")
+  supervisorName    String?   @map("supervisor_name")
+  quantity          Float?    @map("quantity")
+  dateOfProduction  DateTime? @map("date_of_production")
+  shift             String?   @map("shift")
+  notes             String?   @map("notes")
+  status            String?   @map("status")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime? @map("updated_at")
+
+  actualRuns  ProductionActualRun[]
+  qcChecks    ProductionQcCheckpoint[]
+
+  @@map("production_job_cards")
+}
+
+// --- Actual Production (ACTUAL_PRODUCTION table, ties to a job card) ------
+
+model ProductionActualRun {
+  id              String    @id @default(uuid())
+  jobCardId       String?   @map("job_card_id")
+  jobCard         ProductionJobCard? @relation(fields: [jobCardId], references: [id])
+  dateOfProduction DateTime? @map("date_of_production")
+  supervisorName  String?   @map("supervisor_name")
+  quantityFg      Float?    @map("quantity_fg")
+  serialNumber    String?   @map("serial_number")
+  machineHours    Float?    @map("machine_hours")
+  ppBagUsed       Float?    @map("pp_bag_used")
+  costingAmount   Float?    @map("costing_amount")
+  status          String?   @map("status")
+  remarks         String?   @map("remarks")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime? @map("updated_at")
+
+  materials ProductionActualMaterial[]
+
+  @@map("production_actual_runs")
+}
+
+// Normalized replacement for "Raw Material Name 1..20" / "Quantity 1..20"
+
+model ProductionActualMaterial {
+  id           String   @id @default(uuid())
+  actualRunId  String?  @map("actual_run_id")
+  actualRun    ProductionActualRun? @relation(fields: [actualRunId], references: [id])
+  materialName String?  @map("material_name")
+  quantity     Float?   @map("quantity")
+  sequence     Int?     @map("sequence")
+
+  @@map("production_actual_materials")
+}
+
+// --- QC checkpoints (LAB-TESTING1/2 + CHEMICAL-TEST + COMPOSITION-QC) ----
+// Merged into one table with a `stage` discriminator.
+
+model ProductionQcCheckpoint {
+  id             String    @id @default(uuid())
+  jobCardId      String?   @map("job_card_id")
+  jobCard        ProductionJobCard? @relation(fields: [jobCardId], references: [id])
+  stage          String?   @map("stage") // 'lab_test_1' | 'lab_test_2' | 'chemical_test' | 'composition_qc'
+  dateOfTest     DateTime? @map("date_of_test")
+  testedBy       String?   @map("tested_by")
+  wcPercent      Float?    @map("wc_percent")
+  bdAt110c       Float?    @map("bd_at_110c")
+  ccsAt100c      Float?    @map("ccs_at_100c")
+  aluminaPercent Float?    @map("alumina_percent")
+  ironPercent    Float?    @map("iron_percent")
+  silicaPercent  Float?    @map("silica_percent")
+  calciumPercent Float?    @map("calcium_percent")
+  status         String?   @map("status")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime? @map("updated_at")
+
+  @@map("production_qc_checkpoints")
+}
+
+// --- Costing (COSTING page) -------------------------------------------------
+
+model ProductionCosting {
+  id                String    @id @default(uuid())
+  orderId           String?   @map("order_id")
+  order             ProductionOrder? @relation(fields: [orderId], references: [id])
+  compositionNo     String?   @map("composition_no")
+  variableCost      Float?    @map("variable_cost")
+  manufacturingCost Float?    @map("manufacturing_cost")
+  interestCost      Float?    @map("interest_cost")
+  transportingFor   Float?    @map("transporting_for")
+  sellingPrice      Float?    @map("selling_price")
+  gpPercent         Float?    @map("gp_percent")
+  aluminaPercent    Float?    @map("alumina_percent")
+  ironPercent       Float?    @map("iron_percent")
+  status            String?   @map("status")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime? @map("updated_at")
+
+  materials         ProductionCostingMaterial[]
+  sampleTest        ProductionSampleTest?
+  piApproval        ProductionPiApproval?
+  managementReview  ProductionManagementReview[]
+
+  @@map("production_costing")
+}
+
+// Normalized replacement for "RM1..20" / "QTY1..20"
+
+model ProductionCostingMaterial {
+  id          String   @id @default(uuid())
+  costingId   String?  @map("costing_id")
+  costing     ProductionCosting? @relation(fields: [costingId], references: [id])
+  materialName String? @map("material_name")
+  quantity    Float?   @map("quantity")
+  sequence    Int?     @map("sequence")
+
+  @@map("production_costing_materials")
+}
+
+// --- Approval gates (SAMPLE-TEST / PI-APPROVAL / MANAGEMENT / MANAGEMENT-APP)
+
+model ProductionSampleTest {
+  id         String    @id @default(uuid())
+  costingId  String?   @unique @map("costing_id")
+  costing    ProductionCosting? @relation(fields: [costingId], references: [id])
+  status     String?   @map("status")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime? @map("updated_at")
+
+  @@map("production_sample_test")
+}
+
+model ProductionPiApproval {
+  id         String    @id @default(uuid())
+  costingId  String?   @unique @map("costing_id")
+  costing    ProductionCosting? @relation(fields: [costingId], references: [id])
+  status     String?   @map("status")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime? @map("updated_at")
+
+  @@map("production_pi_approval")
+}
+
+// Merges MANAGEMENT + MANAGEMENT-APP pages — same shape, different reviewer tier
+
+model ProductionManagementReview {
+  id          String    @id @default(uuid())
+  costingId   String?   @map("costing_id")
+  costing     ProductionCosting? @relation(fields: [costingId], references: [id])
+  reviewType  String?   @map("review_type") // 'management' | 'management_app'
+  status      String?   @map("status")
+  remarks     String?   @map("remarks")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime? @map("updated_at")
+
+  @@map("production_management_review")
+}
+
+// --- Full Kitting (final consolidation page) --------------------------------
+
+model ProductionFullKitting {
+  id        String    @id @default(uuid())
+  orderId   String?   @unique @map("order_id")
+  order     ProductionOrder? @relation(fields: [orderId], references: [id])
+  status    String?   @map("status")
+  remarks   String?   @map("remarks")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime? @map("updated_at")
+
+  @@map("production_full_kitting")
+}
+
+// --- Semi-finished goods track (SF-PRODUCTION → SFJOB-CARD → SFPRODUCTION-ENTRY)
+
+model ProductionSemiOrder {
+  id            String    @id @default(uuid())
+  semiGoodName  String?   @map("semi_good_name")
+  qtyPlanned    Float?    @map("qty_planned")
+  notes         String?   @map("notes")
+  cancelled     Boolean   @default(false) @map("cancelled")
+  status        String?   @map("status")
+  firmName      String?   @map("firm_name")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime? @map("updated_at")
+
+  jobCards ProductionSemiJobCard[]
+
+  @@map("production_semi_orders")
+}
+
+model ProductionSemiJobCard {
+  id              String    @id @default(uuid())
+  semiOrderId     String?   @map("semi_order_id")
+  semiOrder       ProductionSemiOrder? @relation(fields: [semiOrderId], references: [id])
+  supervisorName  String?   @map("supervisor_name")
+  qty             Float?    @map("qty")
+  dateOfProduction DateTime? @map("date_of_production")
+  status          String?   @map("status")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime? @map("updated_at")
+
+  actualRuns ProductionSemiActualRun[]
+
+  @@map("production_semi_job_cards")
+}
+
+model ProductionSemiActualRun {
+  id              String    @id @default(uuid())
+  semiJobCardId   String?   @map("semi_job_card_id")
+  semiJobCard     ProductionSemiJobCard? @relation(fields: [semiJobCardId], references: [id])
+  qtyProduced     Float?    @map("qty_produced")
+  machineHours    Float?    @map("machine_hours")
+  startingReadingPhoto String? @map("starting_reading_photo")
+  endingReadingPhoto   String? @map("ending_reading_photo")
+  isEndProduct    Boolean?  @map("is_end_product")
+  endProductName  String?   @map("end_product_name")
+  endProductQty   Float?    @map("end_product_qty")
+  status          String?   @map("status")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime? @map("updated_at")
+
+  materials ProductionSemiActualMaterial[]
+  crushingRuns ProductionCrushingRun[]
+
+  @@map("production_semi_actual_runs")
+}
+
+// Normalized replacement for the 5x "Raw Material Name N" groups
+
+model ProductionSemiActualMaterial {
+  id             String   @id @default(uuid())
+  semiActualRunId String? @map("semi_actual_run_id")
+  semiActualRun  ProductionSemiActualRun? @relation(fields: [semiActualRunId], references: [id])
+  materialName   String?  @map("material_name")
+  quantity       Float?   @map("quantity")
+  processingCost Float?   @map("processing_cost")
+  sequence       Int?     @map("sequence")
+
+  @@map("production_semi_actual_materials")
+}
+
+// --- Crushing track (CRUSHING page) -----------------------------------------
+
+model ProductionCrushingItem {
+  id               String   @id @default(uuid())
+  inputProductName String?  @map("input_product_name")
+
+  runs ProductionCrushingRun[]
+
+  @@map("production_crushing_items")
+}
+
+model ProductionCrushingRun {
+  id               String    @id @default(uuid())
+  crushingItemId   String?   @map("crushing_item_id")
+  crushingItem     ProductionCrushingItem? @relation(fields: [crushingItemId], references: [id])
+  semiActualRunId  String?   @map("semi_actual_run_id") // optional — crushing can consume a semi-finished run
+  semiActualRun    ProductionSemiActualRun? @relation(fields: [semiActualRunId], references: [id])
+  dateOfProduction DateTime? @map("date_of_production")
+  inputQty         Float?    @map("input_qty")
+  machineHours     Float?    @map("machine_hours")
+  startingReadingPhoto String? @map("starting_reading_photo")
+  endingReadingPhoto   String? @map("ending_reading_photo")
+  remarks          String?   @map("remarks")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime? @map("updated_at")
+
+  outputs ProductionCrushingOutput[]
+
+  @@map("production_crushing_runs")
+}
+
+// Normalized replacement for the 4x "Finished Goods Name N" groups
+
+model ProductionCrushingOutput {
+  id             String   @id @default(uuid())
+  crushingRunId  String?  @map("crushing_run_id")
+  crushingRun    ProductionCrushingRun? @relation(fields: [crushingRunId], references: [id])
+  outputName     String?  @map("output_name")
+  quantity       Float?   @map("quantity")
+  processingCost Float?   @map("processing_cost")
+  sequence       Int?     @map("sequence")
+
+  @@map("production_crushing_outputs")
+}
+
+// --- Reference / master data -------------------------------------------------
+// NOTE: no production_users / production_user_page_access here — Production
+// rides on the master system's single shared login + permission table, the
+// same one Purchase and Order already authenticate against. Just make sure
+// that table's page-access list gets extended with Production's page IDs.
+
+model ProductionKyc {
+  id              String  @id @default(uuid())
+  productName     String? @map("product_name")
+  alumina         Float?  @map("alumina")
+  iron            Float?  @map("iron")
+  price           Float?  @map("price")
+  bd              Float?  @map("bd")
+  ap              Float?  @map("ap")
+  albd            Float?  @map("albd")
+  ratePerAlumina  Float?  @map("rate_per_alumina")
+
+  @@map("production_kyc")
+}
+
+model ProductionMaster {
+  id                    String  @id @default(uuid())
+  category              String? @map("category") // 'priority' | 'supervisor' | 'shift' | 'firm' | 'material' | 'finished_good' | 'crushing_product' | 'status' | ...
+  value                 String? @map("value")
+
+  @@map("production_master")
+}
