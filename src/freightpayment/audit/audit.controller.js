@@ -70,13 +70,12 @@ const complete = async (req, res, next) => {
     const { amount, remark, auditImageUrl, batchNumber } = req.body;
 
     const data = await prisma.$transaction(async (tx) => {
-      const kitting = await tx.freightPaymentKitting.findUnique({
-        where: { entryId },
-      });
-
-      if (!kitting || kitting.status !== 'Done') {
-        const err = new Error('Kitting must be completed first');
-        err.statusCode = 400;
+      // Verify the entry exists (kitting completion is not a hard prerequisite —
+      // entries may arrive from imports that bypass the kitting step)
+      const entry = await tx.freightPaymentEntry.findUnique({ where: { id: entryId } });
+      if (!entry) {
+        const err = new Error('Freight Payment Entry not found');
+        err.statusCode = 404;
         throw err;
       }
 

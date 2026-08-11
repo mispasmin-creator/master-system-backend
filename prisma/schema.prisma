@@ -2890,6 +2890,133 @@ model ServiceMasterDropdown {
   @@map("service_master_dropdown")
 }
 
+// ─────────────────────────────────────────────────────────────────
+// Repair-FMS module. One RepairTask row per machine repair job,
+// moving through Indent -> Sent to Vendor -> Check Machine ->
+// Store In -> Make Payment stage-column groups (Accounts and
+// Dashboard are filtered views over this one model, not separate
+// tables — same shape as the Services module's ServiceJob).
+// Page-access keys prefixed "Repair_"; firm-scoping reuses whatever
+// field/pattern Prompt 1 confirms other firm-scoped modules already
+// use on Login.
+// ─────────────────────────────────────────────────────────────────
+
+model RepairTask {
+  id                            String    @id @default(uuid())
+  taskNo                        String    @unique @map("task_no")
+  firmName                      String    @map("firm_name")
+  serialNo                      String?   @map("serial_no")
+  machineName                   String?   @map("machine_name")
+  machinePartName               String?   @map("machine_part_name")
+  givenBy                       String?   @map("given_by")
+  doerName                      String?   @map("doer_name")
+  problem                       String?
+  enableReminder                Boolean?  @map("enable_reminder")
+  requireAttachment             Boolean?  @map("require_attachment")
+  taskStartDate                 DateTime? @map("task_start_date")
+  taskEndDate                   DateTime? @map("task_end_date")
+  priority                      String?
+  department                    String?
+  location                      String?
+  imageUrl                      String?   @map("image_url")       // file URL
+
+  // Sent to Vendor stage
+  planned                       DateTime? @map("planned")
+  actual                        DateTime? @map("actual")
+  delay                         Float?    @map("delay")
+  vendorName                    String?   @map("vendor_name")
+  leadTimeToDeliverDays         Float?    @map("lead_time_to_deliver_days")
+  transporterName               String?   @map("transporter_name")
+  transportationCharges         Float?    @map("transportation_charges")
+  weighmentSlip                 String?   @map("weighment_slip")   // file URL
+  transportingImageWithMachine  String?   @map("transporting_image_with_machine") // file URL
+  paymentType                   String?   @map("payment_type")
+  howMuch                       Float?    @map("how_much")
+
+  // Check Machine stage
+  planned1                      DateTime? @map("planned_1")
+  actual1                       DateTime? @map("actual_1")
+  transportationAmount          Float?    @map("transportation_amount")
+
+  // Store In stage
+  returnTransporterName         String?   @map("return_transporter_name")   // old "tranporterName"
+  billImage                     String?   @map("bill_image")     // file URL
+  billNo                        String?   @map("bill_no")
+  typeOfBill                    String?   @map("type_of_bill")
+  totalBillAmount               Float?    @map("total_bill_amount")
+  toBePaidAmount                Float?    @map("to_be_paid_amount")
+  planned2                      DateTime? @map("planned_2")
+  actual2                       DateTime? @map("actual_2")
+  delay2                        Float?    @map("delay_2")
+  receivedQuantity              Float?    @map("received_quantity")
+  billMatch                     String?   @map("bill_match")
+  productImage                  String?   @map("product_image")  // file URL
+
+  // Accounts Stage (Audit Steps)
+  planned3                      DateTime? @map("planned_3")
+  actual3                       DateTime? @map("actual_3")
+  delay3                        Float?    @map("delay_3")
+  status1                       String?   @map("status_1")
+  remarks1                      String?   @map("remarks_1")
+  status2                       String?   @map("status_2")
+  remarks2                      String?   @map("remarks_2")
+  status3                       String?   @map("status_3")
+  remarks3                      String?   @map("remarks_3")
+  status4                       String?   @map("status_4")
+  remarks4                      String?   @map("remarks_4")
+
+  // Make Payment stage
+  planned4                      DateTime? @map("planned_4")
+  actual4                       DateTime? @map("actual_4")
+  status                        String    @default("Pending")   // "Pending" | "Complete"
+
+  createdAt                     DateTime  @default(now()) @map("created_at")
+  updatedAt                     DateTime? @updatedAt @map("updated_at")
+
+  advancePayments               RepairAdvancePayment[]
+
+  @@map("repair_task")
+}
+
+model RepairAdvancePayment {
+  id              String     @id @default(uuid())
+  taskId          String?    @map("task_id")
+  taskNo          String?    @map("task_no")
+  paymentNo       String?    @map("payment_no")
+  firmName        String     @map("firm_name")
+  serialNo        String?    @map("serial_no")
+  machineName     String?    @map("machine_name")
+  vendorName      String?    @map("vendor_name")
+  billNo          String?    @map("bill_no")
+  totalBillAmount Float?     @map("total_bill_amount")
+  paymentType     String?    @map("payment_type")
+  toBePaidAmount  Float?     @map("to_be_paid_amount")
+  billMatch       String?    @map("bill_match")
+  amount          Float      @default(0)
+  paidTo          String?    @map("paid_to")
+  paymentMode     String?    @map("payment_mode")
+  remarks         String?
+  paidDate        DateTime?  @map("paid_date")
+  createdAt       DateTime   @default(now()) @map("created_at")
+
+  task            RepairTask? @relation(fields: [taskId], references: [id])
+
+  @@map("repair_advance_payment")
+}
+
+model RepairMasterDropdown {
+  id              String   @id @default(uuid())
+  department      String?
+  firmName        String?  @map("firm_name")
+  vendorName      String?  @map("vendor_name")
+  transporterName String?  @map("transporter_name")
+  machineName     String?  @map("machine_name")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@map("repair_master_dropdown")
+}
+
+
 
 
 

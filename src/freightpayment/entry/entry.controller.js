@@ -22,6 +22,13 @@ const computeEntryFields = (entry) => {
 
   const msInDay = 1000 * 60 * 60 * 24;
 
+  // Kitting delay: kitting.actualAt vs entry.plannedAt
+  let kittingDelayDays = null;
+  if (kitting && kitting.actualAt && entry.plannedAt) {
+    const diffMs = new Date(kitting.actualAt).getTime() - new Date(entry.plannedAt).getTime();
+    kittingDelayDays = Math.max(0, Math.floor(diffMs / msInDay));
+  }
+
   let auditDelayDays = null;
   if (audit && audit.actualAt && entry.plannedAt) {
     const diffMs = new Date(audit.actualAt).getTime() - new Date(entry.plannedAt).getTime();
@@ -43,6 +50,7 @@ const computeEntryFields = (entry) => {
   return {
     ...entry,
     currentStage,
+    kittingDelayDays,
     auditDelayDays,
     postingDelayDays,
     releaseDelayDays,
@@ -119,17 +127,32 @@ const create = async (req, res, next) => {
       });
     }
 
+    // Allowlist known fields to prevent Prisma "Unknown field" errors
+    const b = req.body;
     const payload = {
-      ...req.body,
       uniqueNumber: trimmedUniqueNumber,
+      ...(b.paymentNumber   !== undefined && { paymentNumber:   String(b.paymentNumber) }),
+      ...(b.firmName        !== undefined && { firmName:        String(b.firmName) }),
+      ...(b.fmsName         !== undefined && { fmsName:         String(b.fmsName) }),
+      ...(b.transporterName !== undefined && { transporterName: String(b.transporterName) }),
+      ...(b.vehicleNumber   !== undefined && { vehicleNumber:   String(b.vehicleNumber) }),
+      ...(b.fromLocation    !== undefined && { fromLocation:    String(b.fromLocation) }),
+      ...(b.toLocation      !== undefined && { toLocation:      String(b.toLocation) }),
+      ...(b.materialLoadDetails !== undefined && { materialLoadDetails: String(b.materialLoadDetails) }),
+      ...(b.biltyNumber     !== undefined && { biltyNumber:     String(b.biltyNumber) }),
+      ...(b.rateType        !== undefined && { rateType:        String(b.rateType) }),
+      ...(b.amount          != null        && { amount:          parseFloat(b.amount) }),
+      ...(b.postingAmount   != null        && { postingAmount:   parseFloat(b.postingAmount) }),
+      ...(b.biltyImageUrl   !== undefined && { biltyImageUrl:   String(b.biltyImageUrl) }),
+      ...(b.liftId          !== undefined && { liftId:          String(b.liftId) }),
+      ...(b.partyName       !== undefined && { partyName:       String(b.partyName) }),
+      ...(b.billingQty      != null        && { billingQty:      parseFloat(b.billingQty) }),
+      ...(b.billNumber      !== undefined && { billNumber:      String(b.billNumber) }),
+      ...(b.batchNumber     !== undefined && { batchNumber:     String(b.batchNumber) }),
+      ...(b.plannedAt       !== undefined && { plannedAt:       new Date(b.plannedAt) }),
+      ...(b.actualAt        !== undefined && { actualAt:        new Date(b.actualAt) }),
+      ...(b.remark          !== undefined && { remark:          String(b.remark) }),
     };
-    delete payload.id;
-
-    if (payload.plannedAt) payload.plannedAt = new Date(payload.plannedAt);
-    if (payload.actualAt) payload.actualAt = new Date(payload.actualAt);
-    if (payload.amount !== undefined && payload.amount !== null) payload.amount = parseFloat(payload.amount);
-    if (payload.postingAmount !== undefined && payload.postingAmount !== null) payload.postingAmount = parseFloat(payload.postingAmount);
-    if (payload.billingQty !== undefined && payload.billingQty !== null) payload.billingQty = parseFloat(payload.billingQty);
 
     const data = await prisma.freightPaymentEntry.create({
       data: payload,

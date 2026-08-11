@@ -34,7 +34,9 @@ app.use('/api/freightpayment', require('./src/freightpayment/routes'));
 app.use('/api/inventory', require('./src/inventory/routes'));
 app.use('/api/payment',   require('./src/payment/routes'));
 app.use('/api/services',  require('./src/services/routes'));
+app.use('/api/repair',    require('./src/repair/routes'));
 app.use('/api/upload',   require('./src/routes/uploadRoutes'));
+
 
 // Serve uploads folder statically
 const path = require('path');
