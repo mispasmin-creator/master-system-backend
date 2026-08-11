@@ -15,9 +15,15 @@ const hashPassword = async (password) => {
   return await bcrypt.hash(password, salt);
 };
 
-// Compare password
-const comparePassword = async (enteredPassword, hashedPassword) => {
-  return await bcrypt.compare(enteredPassword, hashedPassword);
+// Compare password (supports bcrypt hash and legacy plain-text fallback)
+const comparePassword = async (enteredPassword, storedPassword) => {
+  if (!storedPassword) return false;
+  if (enteredPassword === storedPassword) return true;
+  try {
+    return await bcrypt.compare(enteredPassword, storedPassword);
+  } catch (err) {
+    return false;
+  }
 };
 
 // @desc    Register a new user

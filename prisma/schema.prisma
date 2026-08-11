@@ -2248,3 +2248,648 @@ model RmSalesActivityLog {
 
   @@map("rmsales_activity_log")
 }
+
+model FreightPaymentEntry {
+  id                  Int                    @id @default(autoincrement())
+  paymentNumber       String?                @map("payment_number")
+  uniqueNumber        String                 @unique @map("unique_number")
+  firmName            String?                @map("firm_name")
+  fmsName             String?                @map("fms_name")
+  transporterName     String?                @map("transporter_name")
+  vehicleNumber       String?                @map("vehicle_number")
+  fromLocation        String?                @map("from_location")
+  toLocation          String?                @map("to_location")
+  materialLoadDetails String?                @map("material_load_details")
+  biltyNumber         String?                @map("bilty_number")
+  rateType            String?                @map("rate_type")
+  amount              Float?                 @map("amount")
+  postingAmount       Float?                 @map("posting_amount")
+  biltyImageUrl       String?                @map("bilty_image_url")
+  liftId              String?                @map("lift_id")
+  partyName           String?                @map("party_name")
+  billingQty          Float?                 @map("billing_qty")
+  billNumber          String?                @map("bill_number")
+  batchNumber         String?                @map("batch_number")
+  plannedAt           DateTime?              @map("planned_at")
+  actualAt            DateTime?              @map("actual_at")
+  remark              String?                @map("remark")
+  createdAt           DateTime               @default(now()) @map("created_at")
+  updatedAt           DateTime?              @map("updated_at")
+  kitting             FreightPaymentKitting?
+  audit               FreightPaymentAudit?
+  posting             FreightPaymentPosting?
+  release             FreightPaymentRelease?
+
+  @@map("freightpayment_entry")
+}
+
+model FreightPaymentKitting {
+  id            Int                 @id @default(autoincrement())
+  entryId       Int                 @unique @map("entry_id")
+  status        String              @default("Not Done") @map("status")
+  remark        String?             @map("remark")
+  actualAt      DateTime?           @map("actual_at")
+  nextPlannedAt DateTime?           @map("next_planned_at")
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime?           @map("updated_at")
+  entry         FreightPaymentEntry @relation(fields: [entryId], references: [id])
+
+  @@map("freightpayment_kitting")
+}
+
+model FreightPaymentAudit {
+  id            Int                 @id @default(autoincrement())
+  entryId       Int                 @unique @map("entry_id")
+  status        String              @default("Not Done") @map("status")
+  amount        Float?              @map("amount")
+  remark        String?             @map("remark")
+  auditImageUrl String?             @map("audit_image_url")
+  batchNumber   String?             @map("batch_number")
+  actualAt      DateTime?           @map("actual_at")
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime?           @map("updated_at")
+  entry         FreightPaymentEntry @relation(fields: [entryId], references: [id])
+
+  @@map("freightpayment_audit")
+}
+
+model FreightPaymentPosting {
+  id          Int                 @id @default(autoincrement())
+  entryId     Int                 @unique @map("entry_id")
+  status      String              @default("Not Done") @map("status")
+  remark      String?             @map("remark")
+  batchNumber String?             @map("batch_number")
+  actualAt    DateTime?           @map("actual_at")
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime?           @map("updated_at")
+  entry       FreightPaymentEntry @relation(fields: [entryId], references: [id])
+
+  @@map("freightpayment_posting")
+}
+
+model FreightPaymentRelease {
+  id                      Int                 @id @default(autoincrement())
+  entryId                 Int                 @unique @map("entry_id")
+  status                  String              @default("Not Done") @map("status")
+  remark                  String?             @map("remark")
+  transporterBillImageUrl String?             @map("transporter_bill_image_url")
+  batchNumber             String?             @map("batch_number")
+  actualAt                DateTime?           @map("actual_at")
+  createdAt               DateTime            @default(now()) @map("created_at")
+  updatedAt               DateTime?           @map("updated_at")
+  entry                   FreightPaymentEntry @relation(fields: [entryId], references: [id])
+
+  @@map("freightpayment_release")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Inventory module. Firms are literals 'Purab' | 'Pmmpl' | 'Rkl'
+// ('Madhya' from the old app folds into 'Pmmpl' — normalize on write).
+// No DB-level generated columns or triggers here on purpose — derived
+// values (optimum stock, max stock, colour flag, current level) are
+// computed in src/inventory/shared/inventoryFormulas.js, matching how
+// the rest of this codebase keeps logic in controllers, not SQL.
+// Page-access keys for this module are prefixed "Inventory_" in the
+// existing Login.page_access column (e.g. Inventory_RawMaterial_Purab).
+// ─────────────────────────────────────────────────────────────────
+
+model InventoryRawMaterial {
+  id                String              @id @default(uuid())
+  firmName          String              @map("firm_name")
+  itemName          String              @map("item_name")
+  unit              String?             @default("")
+  sNo               Int?                @map("s_no")
+  opStock           Float               @default(0) @map("op_stock")
+  opStockDate       DateTime?           @map("op_stock_date")
+  actualLevel       Float               @default(0) @map("actual_level")
+  productRate       Float               @default(0) @map("product_rate")
+  annualConsumption Float               @default(0) @map("annual_consumption")
+  safetyFactor      Float               @default(1) @map("safety_factor")
+  leadTimeDays      Float               @default(0) @map("lead_time_days")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime?           @updatedAt @map("updated_at")
+  movements         InventoryMovement[]
+
+  @@unique([firmName, itemName])
+  @@map("inventory_raw_material")
+}
+
+model InventoryMovement {
+  id            String                @id @default(uuid())
+  rawMaterialId String?               @map("raw_material_id")
+  firmName      String                @map("firm_name")
+  itemName      String                @map("item_name")
+  movementType  String                @map("movement_type")  // RECEIPT | CONSUMPTION | ADJUSTMENT | RETURN
+  quantity      Float
+  sourceModule  String                @map("source_module")  // "purchase" | "production" | "order" | "manual"
+  sourceTable   String                @map("source_table")   // e.g. "PurchaseReceipt"
+  sourceId      String                @map("source_id")
+  createdAt     DateTime              @default(now()) @map("created_at")
+  rawMaterial   InventoryRawMaterial? @relation(fields: [rawMaterialId], references: [id])
+
+  @@unique([sourceModule, sourceTable, sourceId, movementType])
+  @@map("inventory_movement")
+}
+
+model InventoryFinishedGoods {
+  id                       String    @id @default(uuid())
+  firmName                 String    @map("firm_name")
+  productName              String    @map("product_name")
+  sNo                      Int?      @map("s_no")
+  opStock                  Float     @default(0) @map("op_stock")
+  opStockDate              DateTime? @map("op_stock_date")
+  stockAdjustment          Float     @default(0) @map("stock_adjustment")
+  salesOrderPending        Float     @default(0) @map("sales_order_pending")
+  purchaseMaterialReceived Float     @default(0) @map("purchase_material_received")
+  liftMaterial             Float     @default(0) @map("lift_material")
+  inTransit                Float     @default(0) @map("in_transit")
+  purchaseReturn           Float     @default(0) @map("purchase_return")
+  production               Float     @default(0) @map("production")
+  sales                    Float     @default(0) @map("sales")
+  salesReturn              Float     @default(0) @map("sales_return")
+  consumption              Float     @default(0) @map("consumption")
+  currentLevel             Float     @default(0) @map("current_level")
+  createdAt                DateTime  @default(now()) @map("created_at")
+  updatedAt                DateTime? @updatedAt @map("updated_at")
+
+  @@unique([firmName, productName])
+  @@map("inventory_finished_goods")
+}
+
+model InventoryTradingMaterial {
+  id                       String    @id @default(uuid())
+  firmName                 String    @map("firm_name")
+  productName              String    @map("product_name")
+  sNo                      Int?      @map("s_no")
+  unit                     String?   @default("")
+  opStock                  Float     @default(0) @map("op_stock")
+  opStockDate              DateTime? @map("op_stock_date")
+  stockAdjustment          Float     @default(0) @map("stock_adjustment")
+  purchaseMaterialReceived Float     @default(0) @map("purchase_material_received")
+  purchaseReturn           Float     @default(0) @map("purchase_return")
+  sales                    Float     @default(0) @map("sales")
+  salesReturn              Float     @default(0) @map("sales_return")
+  currentLevel             Float     @default(0) @map("current_level")
+  createdAt                DateTime  @default(now()) @map("created_at")
+  updatedAt                DateTime? @updatedAt @map("updated_at")
+
+  @@unique([firmName, productName])
+  @@map("inventory_trading_material")
+}
+
+model InventoryStockAdjustment {
+  id        String   @id @default(uuid())
+  date      DateTime
+  firmName  String   @map("firm_name")
+  category  String            // "RawMaterial" | "FinishedGoods" | "TradingMaterial"
+  itemName  String   @map("item_name")
+  qty       Float
+  direction String            // "Factory +" | "Factory -" (kept identical to old status field)
+  remark    String?
+  createdBy String?  @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("inventory_stock_adjustment")
+}
+
+model InventoryOpStockLog {
+  id          String   @id @default(uuid())
+  firmName    String   @map("firm_name")
+  category    String            // "RawMaterial" | "FinishedGoods"
+  itemName    String   @map("item_name")
+  opStock     Float    @map("op_stock")
+  opStockDate DateTime @map("op_stock_date")
+  changedBy   String?  @map("changed_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("inventory_op_stock_log")
+}
+
+model InventoryRawMaterialHistory {
+  id           String   @id @default(uuid())
+  snapshotDate DateTime @map("snapshot_date")
+  firmName     String   @map("firm_name")
+  itemName     String   @map("item_name")
+  unit         String?
+  actualLevel  Float?   @map("actual_level")
+  capturedAt   DateTime @default(now()) @map("captured_at")
+
+  @@unique([snapshotDate, firmName, itemName])
+  @@map("inventory_raw_material_history")
+}
+
+model InventoryFinishedGoodsHistory {
+  id           String   @id @default(uuid())
+  snapshotDate DateTime @map("snapshot_date")
+  firmName     String   @map("firm_name")
+  productName  String   @map("product_name")
+  currentLevel Float?   @map("current_level")
+  capturedAt   DateTime @default(now()) @map("captured_at")
+
+  @@unique([snapshotDate, firmName, productName])
+  @@map("inventory_finished_goods_history")
+}
+
+model InventoryActivityLog {
+  id        String   @id @default(uuid())
+  userRole  String?  @map("user_role")
+  userName  String?  @map("user_name")
+  action    String
+  details   Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("inventory_activity_log")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Checklist module models
+// ─────────────────────────────────────────────────────────────────
+
+model ChecklistDepartment {
+  id          String    @id @default(uuid())
+  name        String    @unique @map("name")
+  code        String?   @map("code")
+  lastTaskSeq Int       @default(0) @map("last_task_seq")
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime? @map("updated_at")
+  tasks       ChecklistTask[]
+  taskTemplates ChecklistTaskTemplate[]
+  @@map("checklist_department")
+}
+
+model ChecklistCompany {
+  id            String    @id @default(uuid())
+  name          String    @map("name")
+  gstin         String?   @map("gstin")
+  address       String?   @map("address")
+  contactPerson String?   @map("contact_person")
+  contactPhone  String?   @map("contact_phone")
+  contactEmail  String?   @map("contact_email")
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime? @map("updated_at")
+  licenses      ChecklistLicense[]
+  @@map("checklist_company")
+}
+
+model ChecklistTaskTemplate {
+  id                String    @id @default(uuid())
+  taskType          String    @default("checklist") @map("task_type")
+  departmentId      String?   @map("department_id")
+  department        ChecklistDepartment? @relation(fields: [departmentId], references: [id])
+  givenBy           String?   @map("given_by")
+  assignedTo        String?   @map("assigned_to")
+  description       String?   @map("description")
+  frequency         String?   @default("daily") @map("frequency")
+  startDate         DateTime? @map("start_date")
+  workingDaysConfig Json?     @map("working_days_config")
+  enableReminders   Boolean   @default(true) @map("enable_reminders")
+  requireAttachment Boolean   @default(false) @map("require_attachment")
+  isActive          Boolean   @default(true) @map("is_active")
+  createdBy         String?   @map("created_by")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime? @map("updated_at")
+  tasks             ChecklistTask[]
+  @@map("checklist_task_template")
+}
+
+model ChecklistTask {
+  id                  String    @id @default(uuid())
+  taskSeq             Int?      @map("task_seq")
+  templateId          String?   @map("template_id")
+  template            ChecklistTaskTemplate? @relation(fields: [templateId], references: [id])
+  taskType            String    @default("checklist") @map("task_type")
+  departmentId        String?   @map("department_id")
+  department          ChecklistDepartment? @relation(fields: [departmentId], references: [id])
+  givenBy             String?   @map("given_by")
+  assignedTo          String?   @map("assigned_to")
+  description         String?   @map("description")
+  frequency           String?   @map("frequency")
+  dueDate             DateTime? @map("due_date")
+  enableReminders     Boolean   @default(true) @map("enable_reminders")
+  requireAttachment   Boolean   @default(false) @map("require_attachment")
+  status              String    @default("Pending") @map("status")
+  completedAt         DateTime? @map("completed_at")
+  completedBy         String?   @map("completed_by")
+  remarks             String?   @map("remarks")
+  attachmentUrl       String?   @map("attachment_url")
+  verificationStatus  String?   @map("verification_status")
+  verifiedBy          String?   @map("verified_by")
+  verifiedAt          DateTime? @map("verified_at")
+  verificationRemarks String?   @map("verification_remarks")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime? @map("updated_at")
+  history             ChecklistTaskHistory[]
+  @@map("checklist_task")
+}
+
+model ChecklistTaskHistory {
+  id            String    @id @default(uuid())
+  taskId        String?   @map("task_id")
+  task          ChecklistTask? @relation(fields: [taskId], references: [id])
+  action        String?   @map("action")
+  statusFrom    String?   @map("status_from")
+  statusTo      String?   @map("status_to")
+  remarks       String?   @map("remarks")
+  attachmentUrl String?   @map("attachment_url")
+  actor         String?   @map("actor")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  @@map("checklist_task_history")
+}
+
+model ChecklistLicense {
+  id           String    @id @default(uuid())
+  companyId    String?   @map("company_id")
+  company      ChecklistCompany? @relation(fields: [companyId], references: [id])
+  licenseKey   String?   @map("license_key")
+  issuedTo     String?   @map("issued_to")
+  issuedDate   DateTime? @map("issued_date")
+  expiryDate   DateTime? @map("expiry_date")
+  status       String?   @default("Active") @map("status")
+  termsText    String?   @map("terms_text")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime? @map("updated_at")
+  @@map("checklist_license")
+}
+
+model ChecklistTrainingVideo {
+  id          String    @id @default(uuid())
+  title       String?   @map("title")
+  description String?   @map("description")
+  videoUrl    String?   @map("video_url")
+  category    String?   @map("category")
+  uploadedBy  String?   @map("uploaded_by")
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime? @map("updated_at")
+  @@map("checklist_training_video")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Payment module. One row per payment request; it moves through
+// `stage`/`status` rather than being copied into per-stage tables
+// (the old app's 5 Supabase tables were redundant copies of the
+// same record — collapsed here into one row with nullable
+// stage-specific fields, matching how a single payment actually
+// behaves). Page-access keys prefixed "Payment_" in the existing
+// Login.page_access column; firm-scoping reuses whatever field the
+// rest of the schema already uses for that (verify in Prompt 1 —
+// add PaymentUserFirm only if nothing generic already exists).
+// ─────────────────────────────────────────────────────────────────
+
+model PaymentRequest {
+  id                  String    @id @default(uuid())
+  paymentNumber       String    @unique @map("payment_number")
+  status              String    @default("Submitted")  // Submitted | Channel Funded | Approved | Posted | Payment Completed | Rejected
+  uniqueNumber        String?   @map("unique_number")
+  fmsName             String    @map("fms_name")
+  firmName            String    @map("firm_name")
+  payTo               String    @map("pay_to")
+  amount              Float
+  department          String?
+  priority            String?
+  remarks             String?
+  attachmentUrl       String?   @map("attachment_url")
+  supportingDocuments String?   @map("supporting_documents")
+
+  maker               String?
+  checker             String?
+  approver            String?
+
+  plannedDate         DateTime? @map("planned_date")
+  actualDate          DateTime? @map("actual_date")
+  delayDays           Float?    @map("delay_days")
+  requiredDate        DateTime? @map("required_date")
+
+  checkerRemarks      String?   @map("checker_remarks")
+  approverRemarks     String?   @map("approver_remarks")
+  reason              String?
+  approvalStatus      String?   @map("approval_status")
+
+  // Channel funding stage
+  typeOfFunding       String?   @map("type_of_funding")
+  fundingChannel      String?   @map("funding_channel")
+  fundingRemarks      String?   @map("funding_remarks")
+  fundingActual       DateTime? @map("funding_actual")
+  fundingDelay        Float?    @map("funding_delay")
+  fundingStatus       String?   @map("funding_status")   // old "StatusColP"
+
+  // Approval stage
+  approvalActual      DateTime? @map("approval_actual")   // old "Actual 2"
+  approvalStageStatus String?   @map("approval_stage_status") // old "Status2"
+  approvalStageRemarks String?  @map("approval_stage_remarks") // old "Remarks 2"
+
+  // Posting stage
+  postingPlanned      DateTime? @map("posting_planned")   // old "Planned 3"
+  postingActual       DateTime? @map("posting_actual")    // old "Actual3"
+  postingDelay        Float?    @map("posting_delay")     // old "Time Delay3"
+  postingRemarks      String?   @map("posting_remarks")
+
+  // Final payment stage
+  paymentMode         String?   @map("payment_mode")
+  finalPlanned        DateTime? @map("final_planned")     // old "Planned 4"
+  finalActual         DateTime? @map("final_actual")      // old "Actual 4"
+  finalDelay          Float?    @map("final_delay")       // old "Time Delay 4"
+  financeRemarks      String?   @map("finance_remarks")
+
+  createdBy           String?   @map("created_by")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime? @updatedAt @map("updated_at")
+
+  history             PaymentHistoryEntry[]
+
+  @@map("payment_request")
+}
+
+model PaymentHistoryEntry {
+  id            String         @id @default(uuid())
+  paymentId     String         @map("payment_id")
+  title         String                    // e.g. "Payment Request Created", "Channel Funded"
+  userName      String?        @map("user_name")
+  userRole      String?        @map("user_role")
+  comment       String?
+  createdAt     DateTime       @default(now()) @map("created_at")
+  payment       PaymentRequest @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@map("payment_history_entry")
+}
+
+model PaymentVendor {
+  id           String   @id @default(uuid())
+  vendorName   String   @unique @map("vendor_name")
+  vendorType   String?  @map("vendor_type")
+  gstNumber    String?  @map("gst_number")
+  panNumber    String?  @map("pan_number")
+  mobileNumber String?  @map("mobile_number")
+  email        String?
+  address      String?
+  status       String   @default("Active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("payment_vendor")
+}
+
+model PaymentFmsMaster {
+  id             String   @id @default(uuid())
+  fmsName        String   @map("fms_name")
+  firmName       String?  @map("firm_name")
+  typeOfFunding  String?  @map("type_of_funding")
+  paymentMode    String?  @map("payment_mode")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("payment_fms_master")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Services module. Three core entities: ServiceOffer, ServiceJob
+// (the "Service" sheet — one row per service, moving through 5
+// stage-column groups; Bills/Tally/Reports pages are filtered views
+// over this one model, not separate tables), and ServiceUtility (a
+// fully separate recurring-utility-payment workflow). Page-access
+// keys prefixed "Services_"; tab-level restriction (the old app's
+// user.tabs granularity, e.g. "tally:audit") is stored the same way
+// — verify in Prompt 1 whether Login already has a generic tab-scope
+// field before adding a new one.
+// ─────────────────────────────────────────────────────────────────
+
+model ServiceOffer {
+  id            String       @id @default(uuid())
+  offerNo       String       @unique @map("offer_no")
+  firmName      String       @map("firm_name")
+  vendor        String
+  description   String?
+  location      String?
+  amount        Float        @default(0)
+  isOffer       String?      @map("is_offer")       // "Yes" | "No"
+  offerCopy     String?      @map("offer_copy")      // file URL
+  amountPaid    Float        @default(0) @map("amount_paid")
+  outstanding   Float        @default(0)
+  status        String       @default("Pending")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime?    @updatedAt @map("updated_at")
+
+  services      ServiceJob[]
+
+  @@map("service_offer")
+}
+
+model ServiceJob {
+  id              String        @id @default(uuid())
+  serviceNo       String        @unique @map("service_no")
+  offerId         String?       @map("offer_id")
+  firmName        String        @map("firm_name")
+  checker         String?
+  amount          Float         @default(0)
+  tdsAmount       Float         @default(0) @map("tds_amount")
+  remark          String?
+  vendor          String
+  description     String?
+  location        String?
+
+  // Stage 1 — work
+  planned1        DateTime?     @map("planned_1")
+  actual1         DateTime?     @map("actual_1")
+  delay1          Float?        @map("delay_1")
+
+  // Bill
+  billNo          String?       @map("bill_no")
+  billCopy        String?       @map("bill_copy")      // file URL
+
+  // Stage 2 — bill received
+  planned2        DateTime?     @map("planned_2")
+  actual2         DateTime?     @map("actual_2")
+  delay2          Float?        @map("delay_2")
+
+  paymentProof    String?       @map("payment_proof")  // file URL
+
+  // Stage 3 — payment
+  planned3        DateTime?     @map("planned_3")
+  actual3         DateTime?     @map("actual_3")
+  delay3          Float?        @map("delay_3")
+  status3         String?       @map("status_3")
+  remarks3        String?       @map("remarks_3")
+
+  // Stage 4 — audit/rectify (Tally page's "Audit Stage"/"Rectify Stage")
+  planned4        DateTime?     @map("planned_4")
+  actual4         DateTime?     @map("actual_4")
+  delay4          Float?        @map("delay_4")
+  status4         String?       @map("status_4")
+  remarks4        String?       @map("remarks_4")
+
+  // Stage 5 — tally entry / completed
+  planned5        DateTime?     @map("planned_5")
+  actual5         DateTime?     @map("actual_5")
+  delay5          Float?        @map("delay_5")
+  status5         String?       @map("status_5")
+  remarks5        String?       @map("remarks_5")
+
+  paymentForm     String?       @map("payment_form")   // form/link
+  status          String        @default("Service Created")  // derived display status, recomputed on write — see Prompt 3
+
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime?     @updatedAt @map("updated_at")
+
+  offer           ServiceOffer? @relation(fields: [offerId], references: [id])
+
+  @@map("service_job")
+}
+
+model ServiceUtility {
+  id                  String    @id @default(uuid())
+  utilityNo           String    @unique @map("utility_no")
+  firmName            String    @map("firm_name")
+  personName          String?   @map("person_name")
+  userName            String?   @map("user_name")
+  department          String?
+  groupHead           String?   @map("group_head")
+  payTo               String?   @map("pay_to")
+  amount              Float     @default(0)
+  billImage           String?   @map("bill_image")     // file URL
+  billDate            DateTime? @map("bill_date")
+  dueDate             DateTime? @map("due_date")
+  remarks             String?
+  tdsAmount           Float     @default(0) @map("tds_amount")
+  amountPaid          Float     @default(0) @map("amount_paid")
+  outstanding         Float     @default(0)
+  status              String    @default("Pending Approval")
+
+  planned1            DateTime? @map("planned_1")
+  actual1             DateTime? @map("actual_1")
+  delay1              Float?    @map("delay_1")
+  planned2            DateTime? @map("planned_2")
+  actual2             DateTime? @map("actual_2")
+  delay2              Float?    @map("delay_2")
+  paymentFormLink     String?   @map("payment_form_link")
+
+  fmsName             String?   @map("fms_name")
+  details             String?
+  approvalAttachment  String?   @map("approval_attachment")  // file URL
+
+  paymentNo           String?   @map("payment_no")
+  paymentMode         String?   @map("payment_mode")
+  transactionRef      String?   @map("transaction_ref")
+  paymentDate         DateTime? @map("payment_date")
+  paymentAttachment   String?   @map("payment_attachment")   // file URL
+  paymentRemarks      String?   @map("payment_remarks")
+
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime? @updatedAt @map("updated_at")
+
+  @@map("service_utility")
+}
+
+model ServiceMasterDropdown {
+  id          String   @id @default(uuid())
+  department  String?
+  groupHead   String?  @map("group_head")
+  firmName    String?  @map("firm_name")
+  fmsName     String?  @map("fms_name")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("service_master_dropdown")
+}
+
+
+
+

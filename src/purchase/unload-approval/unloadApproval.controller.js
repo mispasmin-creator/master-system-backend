@@ -71,7 +71,7 @@ const submitUnloadApproval = async (req, res, next) => {
       throw new Error('receiptId is required');
     }
 
-    await prisma.purchaseReceipt.update({
+    const updatedReceipt = await prisma.purchaseReceipt.update({
       where: { id: Number(receiptId) },
       data: {
         unloadApprovalStatus: unloadApprovalStatus || null,
@@ -79,7 +79,30 @@ const submitUnloadApproval = async (req, res, next) => {
         unloadApprovalBy: unloadApprovalBy || null,
         unloadApprovalTrigger: new Date().toISOString(),
       },
+      include: { lift: true },
     });
+
+    if (
+      unloadApprovalStatus &&
+      unloadApprovalStatus.toLowerCase() === 'completed' &&
+      updatedReceipt.lift
+    ) {
+      try {
+        const { applyMovement } = require('../../inventory/shared/inventoryMovement.service');
+        await applyMovement({
+          category: 'RawMaterial',
+          firmName: updatedReceipt.lift.firmName,
+          itemName: updatedReceipt.lift.rawMaterialName,
+          movementType: 'RECEIPT',
+          quantity: updatedReceipt.actualQuantity || updatedReceipt.lift.liftingQty || 0,
+          sourceModule: 'purchase',
+          sourceTable: 'PurchaseReceipt',
+          sourceId: String(updatedReceipt.id),
+        });
+      } catch (err) {
+        console.error('Inventory movement sync hook error:', err.message);
+      }
+    }
 
     res.json({ success: true });
   } catch (error) {

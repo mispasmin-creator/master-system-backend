@@ -114,8 +114,27 @@ const submit = async (req, res, next) => {
         });
       }
 
-      return { bilty, materialReceipt };
+      return { bilty, materialReceipt, delivery };
     });
+
+    try {
+      const { applyMovement } = require('../../inventory/shared/inventoryMovement.service');
+      const del = result.delivery;
+      if (del && del.productName && (del.quantityDelivered || del.qty)) {
+        await applyMovement({
+          category: 'FinishedGoods',
+          firmName: del.givingFromWhere || '',
+          itemName: del.productName,
+          movementType: 'SALES',
+          quantity: del.quantityDelivered || del.qty || 0,
+          sourceModule: 'order',
+          sourceTable: 'OrderDelivery',
+          sourceId: String(del.id),
+        });
+      }
+    } catch (hookErr) {
+      console.error('Inventory movement sync hook error (OrderDelivery):', hookErr.message);
+    }
 
     res.status(201).json({ success: true, data: result });
   } catch (error) {

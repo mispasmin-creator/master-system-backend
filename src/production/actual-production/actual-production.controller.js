@@ -32,8 +32,49 @@ const getOne = async (req, res, next) => {
 const create = async (req, res, next) => {
   try {
     const data = await prisma.productionActualRun.create({
-      data: req.body
+      data: req.body,
+      include: {
+        materials: true,
+        jobCard: { include: { order: true } },
+      },
     });
+
+    try {
+      const { applyMovement } = require('../../inventory/shared/inventoryMovement.service');
+      const order = data.jobCard?.order;
+      if (order && order.productName && data.quantityFg) {
+        await applyMovement({
+          category: 'FinishedGoods',
+          firmName: order.firmName,
+          itemName: order.productName,
+          movementType: 'PRODUCTION',
+          quantity: data.quantityFg,
+          sourceModule: 'production',
+          sourceTable: 'ProductionActualRun',
+          sourceId: String(data.id),
+        });
+      }
+
+      if (data.materials && Array.isArray(data.materials)) {
+        for (const mat of data.materials) {
+          if (mat.materialName && mat.quantity) {
+            await applyMovement({
+              category: 'RawMaterial',
+              firmName: order?.firmName || '',
+              itemName: mat.materialName,
+              movementType: 'CONSUMPTION',
+              quantity: mat.quantity,
+              sourceModule: 'production',
+              sourceTable: 'ProductionActualMaterial',
+              sourceId: String(mat.id),
+            });
+          }
+        }
+      }
+    } catch (hookErr) {
+      console.error('Inventory movement sync hook error (ProductionActualRun):', hookErr.message);
+    }
+
     res.status(201).json({ success: true, data });
   } catch (error) {
     next(error);

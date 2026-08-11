@@ -29,6 +29,11 @@ app.use('/api/order',    require('./src/order/routes'));
 app.use('/api/production', require('./src/production/routes'));
 app.use('/api/refrasynth', require('./src/refrasynth/routes'));
 app.use('/api/rmsales',   require('./src/rmsales/routes'));
+app.use('/api/checklist', require('./src/checklist/routes'));
+app.use('/api/freightpayment', require('./src/freightpayment/routes'));
+app.use('/api/inventory', require('./src/inventory/routes'));
+app.use('/api/payment',   require('./src/payment/routes'));
+app.use('/api/services',  require('./src/services/routes'));
 app.use('/api/upload',   require('./src/routes/uploadRoutes'));
 
 // Serve uploads folder statically
@@ -49,4 +54,25 @@ const PORT = process.env.PORT || 5000;
 // Start server
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode.`);
+
+  // Initialize Inventory Daily Stock Snapshot Cron (Runs at 00:00 IST / 18:30 UTC daily)
+  try {
+    const cron = require('node-cron');
+    const { captureSnapshot } = require('./src/inventory/shared/dailySnapshot.service');
+    // Cron schedule '0 0 * * *' in Asia/Kolkata timezone
+    cron.schedule(
+      '0 0 * * *',
+      async () => {
+        try {
+          await captureSnapshot();
+        } catch (cronErr) {
+          console.error('Scheduled daily stock snapshot failed:', cronErr.message);
+        }
+      },
+      { timezone: 'Asia/Kolkata' }
+    );
+    console.log('Daily inventory stock snapshot cron initialized (Scheduled for 00:00 IST).');
+  } catch (err) {
+    console.error('Failed to initialize daily snapshot cron:', err.message);
+  }
 });
