@@ -52,7 +52,7 @@ services:
     # Wait for the DB (depends_on healthcheck), sync the Prisma schema to it,
     # seed the default admin (idempotent), then start the API. Client was
     # already generated at build time.
-    command: sh -c "npx prisma db push --skip-generate && node prisma/seed.js && node server.js"
+    command: sh -c "npx prisma db push --accept-data-loss --skip-generate && node prisma/seed.js && node server.js"
     depends_on:
       db:
         condition: service_healthy

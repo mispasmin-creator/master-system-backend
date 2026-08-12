@@ -800,6 +800,7 @@ model OrderReceipt {
   logisticsPlans                      OrderLogisticsPlan[]
   logisticsSplits                     OrderLogisticsSplit[]
   receivedAccounts                    OrderReceivedAccounts?
+  productionOrder                     ProductionOrder?
 
   @@map("order_receipt")
 }
@@ -1326,6 +1327,7 @@ model OrderReturnDispatch {
 
 model ProductionOrder {
   id                   String                 @id @default(uuid())
+  receiptId            Int?                   @unique @map("receipt_id")
   deliveryOrderNo      String?                @map("delivery_order_no")
   firmName             String?                @map("firm_name")
   partyName            String?                @map("party_name")
@@ -1341,6 +1343,7 @@ model ProductionOrder {
   reason               String?                @map("reason")
   createdAt            DateTime               @default(now()) @map("created_at")
   updatedAt            DateTime?              @map("updated_at")
+  receipt              OrderReceipt?          @relation(fields: [receiptId], references: [id])
   costings             ProductionCosting[]
   fullKitting          ProductionFullKitting?
   jobCards             ProductionJobCard[]
@@ -1617,9 +1620,22 @@ model ProductionKyc {
 }
 
 model ProductionMaster {
-  id       String  @id @default(uuid())
-  category String? @map("category")
-  value    String? @map("value")
+  id                  String    @id @default(uuid())
+  priority            String?   @map("Priority")
+  supervisorName      String?   @map("Supervisor Name")
+  shift               String?   @map("Shift")
+  testStatus          String?   @map("Test Status")
+  testedBy            String?   @map("Tested by")
+  status              String?   @map("Status")
+  firmName            String?   @map("Firm Name")
+  materialName        String?   @map("Material Name")
+  flowOfMaterial      String?   @map("Flow Of Material")
+  sfSupervisorName    String?   @map("SF Supervisor Name")
+  nameOfRawMaterial   String?   @map("Name Of Raw Material")
+  finishedGoodsName   String?   @map("Finished Goods Name")
+  crushingProductName String?   @map("Crushing Product Name")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime? @updatedAt @map("updated_at")
 
   @@map("production_master")
 }

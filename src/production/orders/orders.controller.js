@@ -31,6 +31,12 @@ const getOne = async (req, res, next) => {
 // @route   POST /api/production/orders
 const create = async (req, res, next) => {
   try {
+    if (Array.isArray(req.body)) {
+      const created = await Promise.all(
+        req.body.map((item) => prisma.productionOrder.create({ data: item }))
+      );
+      return res.status(201).json({ success: true, data: created });
+    }
     const data = await prisma.productionOrder.create({
       data: req.body
     });

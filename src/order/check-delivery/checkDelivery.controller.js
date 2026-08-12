@@ -79,7 +79,7 @@ const upsertCheckDelivery = async (req, res, next) => {
       });
       // Mirrored onto the receipt — the Invoice Report tab groups completed
       // invoices by these same source fields read straight off ORDER RECEIPT.
-      await tx.orderReceipt.update({
+      const receipt = await tx.orderReceipt.update({
         where: { id: receiptId },
         data: {
           inStockOrNot: data.inStockOrNot,
@@ -87,7 +87,38 @@ const upsertCheckDelivery = async (req, res, next) => {
           qtyTransferred: data.qtyTransferred,
           batchNumberInRemarks: data.batchNumberRemarks,
         },
+        include: { checkPo: true },
       });
+
+      if (data.inStockOrNot === 'For Production Planning' && receipt) {
+        const expectedDeliveryDate =
+          receipt.checkPo?.expectedDeliveryDate || receipt.expectedDeliveryDate || null;
+
+        await tx.productionOrder.upsert({
+          where: { receiptId },
+          create: {
+            receiptId,
+            deliveryOrderNo: receipt.doNumber || null,
+            firmName: receipt.firmName || null,
+            partyName: receipt.partyName || null,
+            productName: receipt.productName || null,
+            orderQuantity: receipt.quantity != null ? Number(receipt.quantity) : null,
+            expectedDeliveryDate,
+            crmName: receipt.crmForCustomer || null,
+            status: 'Pending',
+          },
+          update: {
+            deliveryOrderNo: receipt.doNumber || null,
+            firmName: receipt.firmName || null,
+            partyName: receipt.partyName || null,
+            productName: receipt.productName || null,
+            orderQuantity: receipt.quantity != null ? Number(receipt.quantity) : null,
+            expectedDeliveryDate,
+            crmName: receipt.crmForCustomer || null,
+          },
+        });
+      }
+
       return row;
     });
 
