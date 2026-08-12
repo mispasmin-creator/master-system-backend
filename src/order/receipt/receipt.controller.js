@@ -1,7 +1,17 @@
 const { prisma } = require('../../config/db');
 const { nextSequenceNumber } = require('../shared/sequence');
 
-const parseNum = (v) => (v === undefined || v === null || v === '' ? null : parseFloat(v));
+const parseNum = (v) => {
+  if (v === undefined || v === null || v === "") return null;
+  const n = parseFloat(v);
+  return isNaN(n) ? null : n;
+};
+
+const parseIntSafe = (v) => {
+  if (v === undefined || v === null || v === "") return null;
+  const n = parseInt(v, 10);
+  return isNaN(n) ? null : n;
+};
 
 // @desc    List all order receipts (Order page — firm-scoping is applied
 //          client-side, matching the purchase module's convention)
@@ -40,15 +50,12 @@ const createReceipt = async (req, res, next) => {
       res.status(400);
       throw new Error('Firm Name, PO No, Party Name, Contact Person and WhatsApp No. are required.');
     }
-    if (!uploadSo) {
-      res.status(400);
-      throw new Error('Please upload the SO/PO file.');
-    }
     if (!Array.isArray(products) || products.length === 0) {
       res.status(400);
       throw new Error('At least one product line is required.');
     }
 
+    const uploadSoUrl = uploadSo || 'N/A';
     const freight = typeOfTransporting === 'Ex Factory But paid by Us' ? 'Yes' : 'No';
 
     // PI Due Date auto-calc: only when Type Of PI implies "100% after ..."
@@ -87,7 +94,7 @@ const createReceipt = async (req, res, next) => {
             quantity,
             rateOfMaterial,
             typeOfTransporting,
-            uploadSo,
+            uploadSo: uploadSoUrl,
             isOrderThroughAgent: isOrderThroughAgent || null,
             orderReceivedFrom: orderReceivedFrom || null,
             typeOfMeasurement: typeOfMeasurement || null,
@@ -109,11 +116,11 @@ const createReceipt = async (req, res, next) => {
             basic,
             retentionPayment: retentionPayment || 'No',
             retentionPercentage: parseNum(retentionPercentage),
-            leadTimeForRetention: leadTimeForRetention ? parseInt(leadTimeForRetention, 10) : null,
+            leadTimeForRetention: parseIntSafe(leadTimeForRetention),
             specificConcern: specificConcern || null,
             referenceNo: referenceNo || null,
             adjustedAmount: parseNum(adjustedAmount),
-            marketingManagerName: marketingManagerName || null,
+            marketingManagerName: marketingSalesPerson || marketingManagerName || null,
             delivered: 0,
             pendingQty: quantity,
             status: 'New Order',
@@ -121,7 +128,7 @@ const createReceipt = async (req, res, next) => {
             tcRequired: tcRequired || null,
             freight,
             freightAmount: freight === 'Yes' ? parseNum(p.freightAmount) : null,
-            leadTimeToReachFactory: leadTimeToReachFactory ? parseInt(leadTimeToReachFactory, 10) : null,
+            leadTimeToReachFactory: parseIntSafe(leadTimeToReachFactory),
             piDueDate,
           },
         });
