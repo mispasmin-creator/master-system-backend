@@ -2809,6 +2809,7 @@ model ServiceJob {
   delay1          Float?        @map("delay_1")
 
   // Bill
+  paymentFormDone Boolean       @default(false) @map("payment_form_done")
   billNo          String?       @map("bill_no")
   billCopy        String?       @map("bill_copy")      // file URL
 
