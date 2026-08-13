@@ -5,6 +5,11 @@ const { prisma } = require('../../config/db');
 const getAll = async (req, res, next) => {
   try {
     const data = await prisma.productionJobCard.findMany({
+      include: {
+        order: true,
+        actualRuns: { include: { materials: true } },
+        qcChecks: true,
+      },
       orderBy: { createdAt: 'desc' }
     });
     res.json({ success: true, data });

@@ -12,7 +12,9 @@ router.use('/management-review', require('./management-review/management-review.
 router.use('/full-kitting', require('./full-kitting/full-kitting.routes'));
 router.use('/semi-production', require('./semi-production/semi-production.routes'));
 router.use('/semi-job-card', require('./semi-production/semi-job-card.routes'));
+router.use('/semi-actual', require('./semi-production/semi-actual.routes'));
 router.use('/crushing', require('./crushing/crushing.routes'));
+router.use('/crushing-items', require('./crushing/crushing-items.routes'));
 router.use('/kyc', require('./kyc/kyc.routes'));
 router.use('/master', require('./master/master.routes'));
 router.use('/production-tracking', require('./production-tracking/production-tracking.routes'));
