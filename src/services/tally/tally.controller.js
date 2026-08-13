@@ -6,49 +6,77 @@ const { deriveServiceStatus, calculateDelay } = require('../shared/serviceStatus
 const getTallyJobs = async (req, res) => {
   try {
     const { tab = 'audit', firm, search } = req.query;
-    const where = {};
+    const andConditions = [];
 
     if (firm && firm !== 'All') {
-      where.firmName = firm;
+      andConditions.push({ firmName: firm });
     }
 
     if (tab === 'audit') {
-      where.OR = [
-        { status3: 'Approved' },
-        { actual3: { not: null } }
-      ];
-      where.status4 = null;
+      andConditions.push({
+        OR: [
+          { billNo: { not: null, not: '' } },
+          { billCopy: { not: null, not: '' } },
+          { paymentFormDone: true },
+          { actual2: { not: null } },
+          { status3: 'Approved' },
+          { actual3: { not: null } },
+          { status: 'Bill Received' },
+          { status: 'Payment Pending' }
+        ]
+      });
+      andConditions.push({
+        OR: [
+          { status4: null },
+          { status4: '' },
+          { status4: 'Pending' }
+        ]
+      });
     } else if (tab === 'rectify') {
-      where.OR = [
-        { status4: 'Rectify' },
-        { status4: 'Rejected' },
-        { status4: 'Pending Rectification' }
-      ];
+      andConditions.push({
+        OR: [
+          { status4: 'Rectify' },
+          { status4: 'Rejected' },
+          { status4: 'Pending Rectification' }
+        ]
+      });
     } else if (tab === 'tally') {
-      where.OR = [
-        { status4: 'Completed' },
-        { status4: 'Paid' },
-        { status: 'Tally Pending' }
-      ];
-      where.status5 = null;
+      andConditions.push({
+        OR: [
+          { status4: 'Completed' },
+          { status4: 'Paid' },
+          { status: 'Tally Pending' },
+          { actual4: { not: null } }
+        ]
+      });
+      andConditions.push({
+        OR: [
+          { status5: null },
+          { status5: '' },
+          { status5: 'Pending' }
+        ]
+      });
     } else if (tab === 'completed') {
-      where.OR = [
-        { status5: 'Completed' },
-        { status: 'Completed' }
-      ];
+      andConditions.push({
+        OR: [
+          { status5: 'Completed' },
+          { status: 'Completed' },
+          { actual5: { not: null } }
+        ]
+      });
     }
 
     if (search) {
-      where.AND = [
-        {
-          OR: [
-            { serviceNo: { contains: search, mode: 'insensitive' } },
-            { vendor: { contains: search, mode: 'insensitive' } },
-            { billNo: { contains: search, mode: 'insensitive' } }
-          ]
-        }
-      ];
+      andConditions.push({
+        OR: [
+          { serviceNo: { contains: search, mode: 'insensitive' } },
+          { vendor: { contains: search, mode: 'insensitive' } },
+          { billNo: { contains: search, mode: 'insensitive' } }
+        ]
+      });
     }
+
+    const where = andConditions.length > 0 ? { AND: andConditions } : {};
 
     const jobs = await prisma.serviceJob.findMany({
       where,

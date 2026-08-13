@@ -10,7 +10,8 @@ const getBills = async (req, res) => {
     const where = {
       OR: [
         { billNo: { not: null } },
-        { billCopy: { not: null } }
+        { billCopy: { not: null } },
+        { paymentFormDone: true }
       ]
     };
 

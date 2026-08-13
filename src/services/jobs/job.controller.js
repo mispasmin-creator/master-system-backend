@@ -84,7 +84,8 @@ const createJob = async (req, res) => {
       delay5: body.delay5 ? parseFloat(body.delay5) : null,
       status5: body.status5 || null,
       remarks5: body.remarks5 || null,
-      paymentForm: body.paymentForm || null
+      paymentForm: body.paymentForm || null,
+      paymentFormDone: body.paymentFormDone !== undefined ? Boolean(body.paymentFormDone) : false
     };
 
     payload.status = deriveServiceStatus(payload);
@@ -141,6 +142,10 @@ const updateJob = async (req, res) => {
       planned4, actual4, delay4,
       planned5, actual5, delay5
     };
+
+    if (body.paymentFormDone !== undefined) {
+      data.paymentFormDone = Boolean(body.paymentFormDone);
+    }
 
     data.status = deriveServiceStatus({ ...existing, ...data });
 
