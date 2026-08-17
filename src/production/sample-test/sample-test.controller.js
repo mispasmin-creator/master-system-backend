@@ -31,9 +31,27 @@ const getOne = async (req, res, next) => {
 // @route   POST /api/production/sample-test
 const create = async (req, res, next) => {
   try {
-    const data = await prisma.productionSampleTest.create({
-      data: req.body
-    });
+    const { costingId, status, imageUrl } = req.body;
+    let data;
+    if (costingId) {
+      data = await prisma.productionSampleTest.upsert({
+        where: { costingId },
+        create: {
+          costingId,
+          status: status || 'Pending',
+          imageUrl: imageUrl || null,
+        },
+        update: {
+          status: status || 'Pending',
+          imageUrl: imageUrl !== undefined ? imageUrl : undefined,
+          updatedAt: new Date(),
+        },
+      });
+    } else {
+      data = await prisma.productionSampleTest.create({
+        data: req.body
+      });
+    }
     res.status(201).json({ success: true, data });
   } catch (error) {
     next(error);

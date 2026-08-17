@@ -209,3 +209,41 @@ exports.deleteRequest = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * POST /api/payment/requests/:id/action
+ * Handle Checker Action (Approval for Funding or Reject) on Payment Request
+ */
+exports.handleAction = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const body = req.body || {};
+
+    const targetStatus = body.status || body.Status || (body.isRejection ? 'Rejected' : 'Approved for Funding');
+    const actorUser = req.user || body.actorUser || body.user || body.userName || 'Checker User';
+    const remarks = body.remarks || body.Remarks || body.checkerRemarks || body.comment || '';
+
+    const updateDetails = {
+      checkerRemarks: remarks,
+      approvalStatus: targetStatus === 'Rejected' ? 'Rejected' : 'Approved for Funding',
+      historyTitle: targetStatus === 'Rejected' ? 'Payment Request Rejected' : 'Approved for Channel Funding'
+    };
+
+    const result = await workflowService.transition(
+      id,
+      targetStatus,
+      actorUser,
+      remarks,
+      updateDetails
+    );
+
+    res.json({
+      success: true,
+      data: result.payment,
+      history: result.history
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

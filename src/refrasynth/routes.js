@@ -13,5 +13,7 @@ router.use('/tally-entry', require('./tally-entry/tally-entry.routes'));
 router.use('/fullkitting', require('./fullkitting/fullkitting.routes'));
 router.use('/pc-report', require('./pc-report/pc-report.routes'));
 router.use('/payment-history', require('./payment-history/payment-history.routes'));
+router.use('/received', require('./received/received.routes'));
+router.use('/stock', require('./stock/stock.routes'));
 
 module.exports = router;

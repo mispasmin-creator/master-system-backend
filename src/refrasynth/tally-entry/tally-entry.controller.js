@@ -27,12 +27,88 @@ const getOne = async (req, res, next) => {
   }
 };
 
+const ALLOWED_FIELDS = new Set([
+  'timestamp',
+  'indentNo',
+  'purchaseDate',
+  'indentDate',
+  'indentNumber',
+  'liftNumber',
+  'poNumber',
+  'materialInDate',
+  'productName',
+  'billNo',
+  'qty',
+  'partyName',
+  'billAmt',
+  'billImage',
+  'billReceivedLater',
+  'notReceivedBillNo',
+  'location',
+  'typeOfBills',
+  'productImage',
+  'area',
+  'indentedFor',
+  'approvedPartyName',
+  'rate',
+  'indentQty',
+  'totalRate',
+  'firmName',
+  'firmNameMatch',
+  'hodStatus',
+  'hodRemark',
+  'damageOrder',
+  'quantityAsPerBill',
+  'priceAsPerPoCheck',
+  'receivingStatus',
+  'receivedQuantity',
+  'planned1',
+  'actual1',
+  'delay1',
+  'status1',
+  'remarks1',
+  'planned2',
+  'actual2',
+  'delay2',
+  'status2',
+  'remarks2',
+  'planned3',
+  'actual3',
+  'delay3',
+  'status3',
+  'remarks3',
+  'planned4',
+  'actual4',
+  'delay4',
+  'status4',
+  'remarks4',
+  'planned5',
+  'actual5',
+  'status5',
+  'remarks5',
+  'indentId',
+  'storeInId',
+  'createdAt',
+  'updatedAt'
+]);
+
+function sanitizeTallyEntryData(body) {
+  if (!body || typeof body !== 'object') return body;
+  const sanitized = {};
+  for (const key of Object.keys(body)) {
+    if (ALLOWED_FIELDS.has(key)) {
+      sanitized[key] = body[key];
+    }
+  }
+  return sanitized;
+}
+
 // @desc    Create tally-entry
 // @route   POST /api/refrasynth/tally-entry
 const create = async (req, res, next) => {
   try {
     const data = await prisma.refrasynthTallyEntry.create({
-      data: req.body
+      data: sanitizeTallyEntryData(req.body)
     });
     res.status(201).json({ success: true, data });
   } catch (error) {
@@ -46,7 +122,7 @@ const update = async (req, res, next) => {
   try {
     const data = await prisma.refrasynthTallyEntry.update({
       where: { id: parseInt(req.params.id, 10) || req.params.id },
-      data: req.body
+      data: sanitizeTallyEntryData(req.body)
     });
     res.json({ success: true, data });
   } catch (error) {

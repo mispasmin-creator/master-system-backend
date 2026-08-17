@@ -8,6 +8,7 @@ router.use('/order',     require('./order/order.routes'));
 router.use('/logistics', require('./logistics/logistics.routes'));
 router.use('/invoice',   require('./invoice/invoice.routes'));
 router.use('/dashboard', require('./dashboard/dashboard.routes'));
+router.use('/master',    require('./master/master.routes'));
 
 router.get('/', (req, res) => {
   res.json({ success: true, data: { message: 'RM Sales System overview' } });

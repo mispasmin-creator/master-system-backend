@@ -1753,7 +1753,7 @@ model RefrasynthUser {
 
 model RefrasynthIndent {
   id                  Int                     @id @default(autoincrement())
-  indentNumber        String?                 @unique @map("indent_number")
+  indentNumber        String?                 @map("indent_number")
   timestamp           DateTime?               @map("timestamp")
   firmName            String?                 @map("firm_name")
   indenterName        String?                 @map("indenter_name")
@@ -2297,6 +2297,18 @@ model RmSalesActivityLog {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("rmsales_activity_log")
+}
+
+model RmSalesMaster {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  firmName      String?   @map("firm_name")
+  partyName     String?   @map("party_name")
+  productName   String?   @map("product_name")
+  transportType String?   @map("transport_type")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime? @map("updated_at")
+
+  @@map("rmsales_master")
 }
 
 model FreightPaymentEntry {
@@ -3072,4 +3084,48 @@ model RepairMasterDropdown {
   createdAt       DateTime @default(now()) @map("created_at")
 
   @@map("repair_master_dropdown")
+}
+model RefrasynthReceived {
+  id                  BigInt    @id @default(autoincrement())
+  timestamp           DateTime? @db.Timestamptz
+  indentNumber        String?   @map("indent_number")
+  poDate               String?   @map("po_date")
+  poNumber             String?   @map("po_number")
+  vendor               String?
+  receivedStatus       String?   @map("received_status")
+  receivedQuantity     String?   @map("received_quantity")
+  uom                  String?
+  photoOfProduct       String?   @map("photo_of_product")
+  warrantyStatus       String?   @map("warranty_status")
+  endDate              String?   @map("end_date")
+  billStatus           String?   @map("bill_status")
+  billNumber           String?   @map("bill_number")
+  billAmount           String?   @map("bill_amount")
+  photoOfBill          String?   @map("photo_of_bill")
+  anyTransportations   String?   @map("any_transportations")
+  transporterName      String?   @map("transporter_name")
+  transportingAmount   String?   @map("transporting_amount")
+
+  @@map("refrasynth_received")
+}
+
+model RefrasynthStock {
+  id            BigInt    @id @default(autoincrement())
+  timestamp     DateTime? @db.Timestamptz
+  serialNumber  String?   @map("serial_number")
+  groupHead     String?   @map("group_head")
+  productName   String?   @map("product_name")
+  uom           String?
+  opening       String?
+  minLevel      String?   @map("min_level")
+  latestPrice   String?   @map("latest_price")
+  intransit     String?
+  received      String?
+  consumed      String?
+  currentStock  String?   @map("current_stock")
+  value         String?
+  required      String?
+  condition     String?
+
+  @@map("refrasynth_stock")
 }

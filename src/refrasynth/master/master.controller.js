@@ -27,12 +27,50 @@ const getOne = async (req, res, next) => {
   }
 };
 
+const ALLOWED_FIELDS = new Set([
+  'category',
+  'groupName',
+  'itemName',
+  'department',
+  'areaOfUse',
+  'uom',
+  'firmName',
+  'fmsName',
+  'paymentTerm',
+  'defaultTerms',
+  'where',
+  'vendorName',
+  'vendorGstin',
+  'vendorAddress',
+  'vendorEmail',
+  'companyName',
+  'companyAddress',
+  'companyGstin',
+  'companyPhone',
+  'companyPan',
+  'billingAddress',
+  'destinationAddress',
+  'createdAt',
+  'updatedAt'
+]);
+
+function sanitizeMasterData(body) {
+  if (!body || typeof body !== 'object') return body;
+  const sanitized = {};
+  for (const key of Object.keys(body)) {
+    if (ALLOWED_FIELDS.has(key)) {
+      sanitized[key] = body[key];
+    }
+  }
+  return sanitized;
+}
+
 // @desc    Create master
 // @route   POST /api/refrasynth/master
 const create = async (req, res, next) => {
   try {
     const data = await prisma.refrasynthMaster.create({
-      data: req.body
+      data: sanitizeMasterData(req.body)
     });
     res.status(201).json({ success: true, data });
   } catch (error) {
@@ -46,7 +84,7 @@ const update = async (req, res, next) => {
   try {
     const data = await prisma.refrasynthMaster.update({
       where: { id: parseInt(req.params.id, 10) || req.params.id },
-      data: req.body
+      data: sanitizeMasterData(req.body)
     });
     res.json({ success: true, data });
   } catch (error) {

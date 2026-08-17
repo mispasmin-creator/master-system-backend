@@ -27,12 +27,67 @@ const getOne = async (req, res, next) => {
   }
 };
 
+const ALLOWED_FIELDS = new Set([
+  'username',
+  'name',
+  'firmNameMatch',
+  'administrate',
+  'createIndent',
+  'createPo',
+  'indentApprovalView',
+  'indentApprovalAction',
+  'updateVendorView',
+  'updateVendorAction',
+  'threePartyApprovalView',
+  'threePartyApprovalAction',
+  'receiveItemView',
+  'receiveItemAction',
+  'storeOutApprovalView',
+  'storeOutApprovalAction',
+  'pendingIndentsView',
+  'ordersView',
+  'againAuditing',
+  'takeEntryByTelly',
+  'reauditData',
+  'rectifyTheMistake',
+  'auditData',
+  'sendDebitNote',
+  'returnMaterialToParty',
+  'exchangeMaterials',
+  'insteadOfQualityCheckInReceivedItem',
+  'dbForPc',
+  'billNotReceived',
+  'storeIn',
+  'hodStoreApproval',
+  'poHistory',
+  'storeIssue',
+  'issueData',
+  'inventory',
+  'pendingPo',
+  'fullKiting',
+  'makePayment',
+  'paymentStatus',
+  'createdAt',
+  'updatedAt'
+]);
+
+function sanitizeUserData(body) {
+  if (!body || typeof body !== 'object') return body;
+  const sanitized = {};
+  for (const key of Object.keys(body)) {
+    if (ALLOWED_FIELDS.has(key)) {
+      sanitized[key] = body[key];
+    }
+  }
+  return sanitized;
+}
+
 // @desc    Create user
 // @route   POST /api/refrasynth/user
 const create = async (req, res, next) => {
   try {
     const data = await prisma.refrasynthUser.create({
-      data: req.body
+      data: sanitizeUserData(req.body)
     });
     res.status(201).json({ success: true, data });
   } catch (error) {
@@ -46,7 +101,7 @@ const update = async (req, res, next) => {
   try {
     const data = await prisma.refrasynthUser.update({
       where: { id: parseInt(req.params.id, 10) || req.params.id },
-      data: req.body
+      data: sanitizeUserData(req.body)
     });
     res.json({ success: true, data });
   } catch (error) {

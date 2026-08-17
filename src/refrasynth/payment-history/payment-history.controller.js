@@ -27,18 +27,72 @@ const getOne = async (req, res, next) => {
   }
 };
 
+const ALLOWED_FIELDS = new Set([
+  'timestamp',
+  'apPaymentNumber',
+  'status',
+  'uniqueNumber',
+  'fmsName',
+  'payTo',
+  'amountToBePaid',
+  'remarks',
+  'anyAttachments',
+  'timestamp1',
+  'planned',
+  'paymentTerms',
+  'indentNo',
+  'poNumber',
+  'productName',
+  'liftNumber',
+  'billStatus',
+  'billNo',
+  'qty',
+  'vendorName',
+  'typeOfBill',
+  'billAmount',
+  'discountAmount',
+  'paymentType',
+  'advanceAmountIfAny',
+  'photoOfBill',
+  'transportationInclude',
+  'transporterName',
+  'amount',
+  'leadTimeToLiftMaterial',
+  'vehicleNo',
+  'driverName',
+  'driverMobileNo',
+  'billRemark',
+  'createdAt',
+  'updatedAt'
+]);
+
+function sanitizePaymentHistoryData(body) {
+  if (!body || typeof body !== 'object') return body;
+  if (Array.isArray(body)) {
+    return body.map(sanitizePaymentHistoryData);
+  }
+  const sanitized = {};
+  for (const key of Object.keys(body)) {
+    if (ALLOWED_FIELDS.has(key)) {
+      sanitized[key] = body[key];
+    }
+  }
+  return sanitized;
+}
+
 // @desc    Create payment history (supports bulk or single inserts)
 // @route   POST /api/refrasynth/payment-history
 const create = async (req, res, next) => {
   try {
     let data;
-    if (Array.isArray(req.body)) {
+    const sanitized = sanitizePaymentHistoryData(req.body);
+    if (Array.isArray(sanitized)) {
       data = await prisma.refrasynthPaymentHistory.createMany({
-        data: req.body
+        data: sanitized
       });
     } else {
       data = await prisma.refrasynthPaymentHistory.create({
-        data: req.body
+        data: sanitized
       });
     }
     res.status(201).json({ success: true, data });
@@ -53,7 +107,7 @@ const update = async (req, res, next) => {
   try {
     const data = await prisma.refrasynthPaymentHistory.update({
       where: { id: parseInt(req.params.id, 10) || req.params.id },
-      data: req.body
+      data: sanitizePaymentHistoryData(req.body)
     });
     res.json({ success: true, data });
   } catch (error) {

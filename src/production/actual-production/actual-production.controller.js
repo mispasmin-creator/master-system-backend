@@ -31,12 +31,48 @@ const getOne = async (req, res, next) => {
   }
 };
 
+const parseDate = (val) => {
+  if (!val) return null;
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d;
+};
+
+const sanitizeActualRunPayload = (body) => {
+  const payload = { ...body };
+  if ('dateOfProduction' in payload) {
+    payload.dateOfProduction = parseDate(payload.dateOfProduction);
+  }
+  if ('quantityFg' in payload && payload.quantityFg !== undefined && payload.quantityFg !== null) {
+    payload.quantityFg = payload.quantityFg === '' ? null : Number(payload.quantityFg);
+  }
+  if ('machineHours' in payload && payload.machineHours !== undefined && payload.machineHours !== null) {
+    payload.machineHours = payload.machineHours === '' ? null : Number(payload.machineHours);
+  }
+  if ('ppBagUsed' in payload && payload.ppBagUsed !== undefined && payload.ppBagUsed !== null) {
+    payload.ppBagUsed = payload.ppBagUsed === '' ? null : Number(payload.ppBagUsed);
+  }
+  if ('ppBagToBeUsed' in payload && payload.ppBagToBeUsed !== undefined && payload.ppBagToBeUsed !== null) {
+    payload.ppBagToBeUsed = payload.ppBagToBeUsed === '' ? null : Number(payload.ppBagToBeUsed);
+  }
+  if ('ppBagSmall' in payload && payload.ppBagSmall !== undefined && payload.ppBagSmall !== null) {
+    payload.ppBagSmall = payload.ppBagSmall === '' ? null : Number(payload.ppBagSmall);
+  }
+  if ('costingAmount' in payload && payload.costingAmount !== undefined && payload.costingAmount !== null) {
+    payload.costingAmount = payload.costingAmount === '' ? null : Number(payload.costingAmount);
+  }
+  if ('jobCardId' in payload && !payload.jobCardId) {
+    payload.jobCardId = null;
+  }
+  return payload;
+};
+
 // @desc    Create actual-production
 // @route   POST /api/production/actual-production
 const create = async (req, res, next) => {
   try {
+    const payload = sanitizeActualRunPayload(req.body);
     const data = await prisma.productionActualRun.create({
-      data: req.body,
+      data: payload,
       include: {
         materials: true,
         jobCard: { include: { order: true } },
@@ -89,9 +125,10 @@ const create = async (req, res, next) => {
 // @route   PATCH /api/production/actual-production/:id
 const update = async (req, res, next) => {
   try {
+    const payload = sanitizeActualRunPayload(req.body);
     const data = await prisma.productionActualRun.update({
       where: { id: req.params.id },
-      data: req.body
+      data: payload
     });
     res.json({ success: true, data });
   } catch (error) {

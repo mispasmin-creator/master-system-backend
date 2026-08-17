@@ -51,8 +51,8 @@ async function generatePaymentNumber(customPrisma) {
  * Valid status transition map per Prompt 1 / payment-migration-notes.md.
  */
 const ALLOWED_TRANSITIONS = {
-  'Draft': ['Submitted', 'Yes', 'Rejected'],
-  'No': ['Submitted', 'Yes', 'Rejected'],
+  'Draft': ['Submitted', 'Yes', 'Approved for Funding', 'Rejected'],
+  'No': ['Submitted', 'Yes', 'Approved for Funding', 'Rejected'],
   'Submitted': ['Approved for Funding', 'Draft', 'Rejected'],
   'Yes': ['Approved for Funding', 'Draft', 'Rejected'],
   'Approved for Funding': ['Channel Funded', 'Rejected'],
@@ -140,7 +140,10 @@ async function transition(paymentIdOrNumber, newStatus, actorUser, remarks = '',
   const userRole = typeof actorUser === 'object' ? (actorUser.role || actorUser.Role || 'User') : 'User';
 
   // Stage-specific payload enrichment
-  if (newStatus === 'Channel Funded') {
+  if (newStatus === 'Approved for Funding') {
+    updateData.approvalStatus = 'Approved for Funding';
+    updateData.checkerRemarks = remarks || updateDetails.checkerRemarks || payment.checkerRemarks;
+  } else if (newStatus === 'Channel Funded') {
     if (updateDetails.typeOfFunding || updateDetails["Type of funding"]) {
       updateData.typeOfFunding = updateDetails.typeOfFunding || updateDetails["Type of funding"];
     }

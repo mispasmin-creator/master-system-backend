@@ -32,12 +32,33 @@ const getOne = async (req, res, next) => {
   }
 };
 
+const parseDate = (val) => {
+  if (!val) return null;
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d;
+};
+
+const sanitizeJobCardPayload = (body) => {
+  const payload = { ...body };
+  if ('dateOfProduction' in payload) {
+    payload.dateOfProduction = parseDate(payload.dateOfProduction);
+  }
+  if ('quantity' in payload && payload.quantity !== undefined && payload.quantity !== null) {
+    payload.quantity = payload.quantity === '' ? null : Number(payload.quantity);
+  }
+  if ('orderId' in payload && !payload.orderId) {
+    payload.orderId = null;
+  }
+  return payload;
+};
+
 // @desc    Create job-cards
 // @route   POST /api/production/job-cards
 const create = async (req, res, next) => {
   try {
+    const payload = sanitizeJobCardPayload(req.body);
     const data = await prisma.productionJobCard.create({
-      data: req.body
+      data: payload
     });
     res.status(201).json({ success: true, data });
   } catch (error) {
@@ -49,9 +70,10 @@ const create = async (req, res, next) => {
 // @route   PATCH /api/production/job-cards/:id
 const update = async (req, res, next) => {
   try {
+    const payload = sanitizeJobCardPayload(req.body);
     const data = await prisma.productionJobCard.update({
       where: { id: req.params.id },
-      data: req.body
+      data: payload
     });
     res.json({ success: true, data });
   } catch (error) {

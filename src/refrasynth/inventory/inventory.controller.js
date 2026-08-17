@@ -27,12 +27,45 @@ const getOne = async (req, res, next) => {
   }
 };
 
+const ALLOWED_FIELDS = new Set([
+  'itemName',
+  'groupHead',
+  'uom',
+  'maxLevel',
+  'opening',
+  'individualRate',
+  'indented',
+  'approved',
+  'purchaseQuantity',
+  'outQuantity',
+  'current',
+  'minStock',
+  'maxStock',
+  'totalPrice',
+  'colorCode',
+  'status',
+  'firmName',
+  'createdAt',
+  'updatedAt'
+]);
+
+function sanitizeInventoryData(body) {
+  if (!body || typeof body !== 'object') return body;
+  const sanitized = {};
+  for (const key of Object.keys(body)) {
+    if (ALLOWED_FIELDS.has(key)) {
+      sanitized[key] = body[key];
+    }
+  }
+  return sanitized;
+}
+
 // @desc    Create inventory
 // @route   POST /api/refrasynth/inventory
 const create = async (req, res, next) => {
   try {
     const data = await prisma.refrasynthInventory.create({
-      data: req.body
+      data: sanitizeInventoryData(req.body)
     });
     res.status(201).json({ success: true, data });
   } catch (error) {
@@ -46,7 +79,7 @@ const update = async (req, res, next) => {
   try {
     const data = await prisma.refrasynthInventory.update({
       where: { id: parseInt(req.params.id, 10) || req.params.id },
-      data: req.body
+      data: sanitizeInventoryData(req.body)
     });
     res.json({ success: true, data });
   } catch (error) {

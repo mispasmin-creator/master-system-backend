@@ -32,7 +32,7 @@ app.use('/api/rmsales',   require('./src/rmsales/routes'));
 app.use('/api/checklist', require('./src/checklist/routes'));
 app.use('/api/freightpayment', require('./src/freightpayment/routes'));
 app.use('/api/inventory', require('./src/inventory/routes'));
-app.use('/api/payment',   require('./src/payment/routes'));
+app.use('/api/payment',   require('./src/payment/routes')); // Make Payment subsystem
 app.use('/api/services',  require('./src/services/routes'));
 app.use('/api/repair',    require('./src/repair/routes'));
 app.use('/api/upload',   require('./src/routes/uploadRoutes'));
@@ -42,7 +42,7 @@ app.use('/api/upload',   require('./src/routes/uploadRoutes'));
 const path = require('path');
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Basic health check route
+// Basic health check route (Merge System API - Issue Data & Inventory Synced)
 app.get('/', (req, res) => {
   res.json({ message: 'Welcome to the Merge System API. API is running smoothly.' });
 });

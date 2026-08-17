@@ -4,9 +4,42 @@ const { prisma } = require('../../config/db');
 // @route   GET /api/rmsales/party
 const getAll = async (req, res, next) => {
   try {
-    const data = await prisma.rmSalesParty.findMany({
+    const dbParties = await prisma.rmSalesParty.findMany({
       orderBy: { createdAt: 'desc' },
     });
+
+    const masterRows = await prisma.rmSalesMaster.findMany({
+      where: { partyName: { not: null } }
+    });
+
+    const partyMap = new Map();
+    dbParties.forEach(p => {
+      partyMap.set(p.name.toLowerCase(), {
+        id: p.id,
+        name: p.name,
+        firm_name: p.firmName || null,
+        created_at: p.createdAt,
+        updated_at: p.updatedAt
+      });
+    });
+
+    masterRows.forEach(m => {
+      if (m.partyName && m.partyName.trim()) {
+        const nameTrimmed = m.partyName.trim();
+        const key = nameTrimmed.toLowerCase();
+        if (!partyMap.has(key)) {
+          partyMap.set(key, {
+            id: m.id,
+            name: nameTrimmed,
+            firm_name: m.firmName || null,
+            created_at: m.createdAt,
+            updated_at: m.updatedAt
+          });
+        }
+      }
+    });
+
+    const data = Array.from(partyMap.values()).sort((a, b) => a.name.localeCompare(b.name));
     res.json({ success: true, data });
   } catch (error) {
     next(error);

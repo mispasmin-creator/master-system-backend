@@ -27,12 +27,58 @@ const getOne = async (req, res, next) => {
   }
 };
 
+const ALLOWED_FIELDS = new Set([
+  'timestamp',
+  'issueNo',
+  'issueTo',
+  'uom',
+  'productName',
+  'quantity',
+  'department',
+  'groupHead',
+  'planned1',
+  'actual1',
+  'timeDelay1',
+  'status',
+  'givenQty',
+  'location',
+  'firmNameMatch',
+  'createdAt',
+  'updatedAt'
+]);
+
+const FLOAT_FIELDS = new Set([
+  'quantity',
+  'givenQty'
+]);
+
+function sanitizeIssueData(body) {
+  if (!body || typeof body !== 'object') return body;
+  const sanitized = {};
+  for (const key of Object.keys(body)) {
+    if (ALLOWED_FIELDS.has(key)) {
+      const val = body[key];
+      if (FLOAT_FIELDS.has(key)) {
+        if (val === null || val === undefined || val === '') {
+          sanitized[key] = null;
+        } else {
+          const num = Number(val);
+          sanitized[key] = isNaN(num) ? null : num;
+        }
+      } else {
+        sanitized[key] = val;
+      }
+    }
+  }
+  return sanitized;
+}
+
 // @desc    Create issue
 // @route   POST /api/refrasynth/issue
 const create = async (req, res, next) => {
   try {
     const data = await prisma.refrasynthIssue.create({
-      data: req.body
+      data: sanitizeIssueData(req.body)
     });
     res.status(201).json({ success: true, data });
   } catch (error) {
@@ -46,7 +92,7 @@ const update = async (req, res, next) => {
   try {
     const data = await prisma.refrasynthIssue.update({
       where: { id: parseInt(req.params.id, 10) || req.params.id },
-      data: req.body
+      data: sanitizeIssueData(req.body)
     });
     res.json({ success: true, data });
   } catch (error) {

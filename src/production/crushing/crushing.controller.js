@@ -29,18 +29,45 @@ const getOne = async (req, res, next) => {
   }
 };
 
+const parseDate = (val) => {
+  if (!val) return null;
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? null : d;
+};
+
+const sanitizeCrushingPayload = (body) => {
+  const { outputs, ...runData } = body;
+  const sanitized = { ...runData };
+  if ('dateOfProduction' in sanitized) {
+    sanitized.dateOfProduction = parseDate(sanitized.dateOfProduction);
+  }
+  if ('inputQty' in sanitized && sanitized.inputQty !== undefined && sanitized.inputQty !== null) {
+    sanitized.inputQty = sanitized.inputQty === '' ? null : Number(sanitized.inputQty);
+  }
+  if ('machineHours' in sanitized && sanitized.machineHours !== undefined && sanitized.machineHours !== null) {
+    sanitized.machineHours = sanitized.machineHours === '' ? null : Number(sanitized.machineHours);
+  }
+  if ('crushingItemId' in sanitized && !sanitized.crushingItemId) {
+    sanitized.crushingItemId = null;
+  }
+  if ('semiActualRunId' in sanitized && !sanitized.semiActualRunId) {
+    sanitized.semiActualRunId = null;
+  }
+  return { outputs, sanitizedRunData: sanitized };
+};
+
 // @desc    Create crushing (supports a nested `outputs` array so finished-goods
 //          outputs can be created in the same call, mirroring the semi-actual
 //          run's nested `materials` create pattern)
 // @route   POST /api/production/crushing
 const create = async (req, res, next) => {
   try {
-    const { outputs, ...runData } = req.body;
+    const { outputs, sanitizedRunData } = sanitizeCrushingPayload(req.body);
     const data = await prisma.productionCrushingRun.create({
       data: {
-        ...runData,
+        ...sanitizedRunData,
         outputs: Array.isArray(outputs) && outputs.length
-          ? { create: outputs.map((o, i) => ({ outputName: o.outputName, quantity: o.quantity, processingCost: o.processingCost, sequence: o.sequence ?? i + 1 })) }
+          ? { create: outputs.map((o, i) => ({ outputName: o.outputName, quantity: Number(o.quantity) || 0, processingCost: Number(o.processingCost) || 0, sequence: o.sequence ?? i + 1 })) }
           : undefined,
       },
       include: { crushingItem: true, outputs: true },
@@ -55,10 +82,10 @@ const create = async (req, res, next) => {
 // @route   PATCH /api/production/crushing/:id
 const update = async (req, res, next) => {
   try {
-    const { outputs, ...runData } = req.body;
+    const { outputs, sanitizedRunData } = sanitizeCrushingPayload(req.body);
     const data = await prisma.productionCrushingRun.update({
       where: { id: req.params.id },
-      data: runData,
+      data: sanitizedRunData,
       include: { crushingItem: true, outputs: true },
     });
     res.json({ success: true, data });

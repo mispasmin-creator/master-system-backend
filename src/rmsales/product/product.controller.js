@@ -4,9 +4,45 @@ const { prisma } = require('../../config/db');
 // @route   GET /api/rmsales/product
 const getAll = async (req, res, next) => {
   try {
-    const data = await prisma.rmSalesProduct.findMany({
+    const dbProducts = await prisma.rmSalesProduct.findMany({
       orderBy: { createdAt: 'desc' },
+      include: { inventory: true }
     });
+
+    const masterRows = await prisma.rmSalesMaster.findMany({
+      where: { productName: { not: null } }
+    });
+
+    const prodMap = new Map();
+    dbProducts.forEach(p => {
+      prodMap.set(p.name.toLowerCase(), {
+        id: p.id,
+        name: p.name,
+        unit: p.unit || 'MT',
+        available_qty: p.availableQty || (p.inventory ? p.inventory.availableQty : 0),
+        created_at: p.createdAt,
+        updated_at: p.updatedAt
+      });
+    });
+
+    masterRows.forEach(m => {
+      if (m.productName && m.productName.trim()) {
+        const nameTrimmed = m.productName.trim();
+        const key = nameTrimmed.toLowerCase();
+        if (!prodMap.has(key)) {
+          prodMap.set(key, {
+            id: m.id,
+            name: nameTrimmed,
+            unit: 'MT',
+            available_qty: 0,
+            created_at: m.createdAt,
+            updated_at: m.updatedAt
+          });
+        }
+      }
+    });
+
+    const data = Array.from(prodMap.values()).sort((a, b) => a.name.localeCompare(b.name));
     res.json({ success: true, data });
   } catch (error) {
     next(error);
