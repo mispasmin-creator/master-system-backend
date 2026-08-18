@@ -25,6 +25,8 @@ const batchCreateTasks = async (req, res, next) => {
     const { 
       taskType, 
       departmentId, 
+      departmentName,
+      firm,
       givenBy, 
       assignedTo, 
       description, 
@@ -43,27 +45,48 @@ const batchCreateTasks = async (req, res, next) => {
 
     const result = await prisma.$transaction(async (tx) => {
       let startSeq = 0;
+      let targetDeptId = null;
 
-      // 1. Fetch department lastTaskSeq if applicable
-      if (taskType !== 'delegation' && departmentId) {
-        const dept = await tx.checklistDepartment.findUnique({ 
-          where: { id: departmentId } 
-        });
-        if (!dept) throw new Error('Department not found');
-        startSeq = dept.lastTaskSeq || 0;
+      // 1. Fetch or upsert department if applicable (for checklist tasks)
+      if (taskType !== 'delegation') {
+        const deptIdentifier = departmentName || firm || departmentId;
+        if (deptIdentifier) {
+          // Look up by ID or by Name
+          let dept = await tx.checklistDepartment.findFirst({
+            where: {
+              OR: [
+                { id: deptIdentifier },
+                { name: { equals: deptIdentifier, mode: 'insensitive' } }
+              ]
+            }
+          });
+
+          if (!dept) {
+            dept = await tx.checklistDepartment.create({
+              data: {
+                name: deptIdentifier,
+                code: deptIdentifier.toUpperCase().replace(/\s+/g, '_').slice(0, 10),
+                lastTaskSeq: 0
+              }
+            });
+          }
+
+          targetDeptId = dept.id;
+          startSeq = dept.lastTaskSeq || 0;
+        }
       }
 
       // 2. Prepare task payload
       const tasksToCreate = occurrences.map((occ, index) => {
         return {
-          taskSeq: taskType !== 'delegation' && departmentId ? startSeq + index + 1 : null,
+          taskSeq: targetDeptId ? startSeq + index + 1 : (index + 1),
           taskType: taskType || 'checklist',
-          departmentId: departmentId || null,
-          givenBy,
-          assignedTo,
-          description,
-          frequency,
-          dueDate: new Date(occ.dueDate),
+          departmentId: targetDeptId || null,
+          givenBy: givenBy || null,
+          assignedTo: assignedTo || null,
+          description: description || null,
+          frequency: frequency || null,
+          dueDate: occ.dueDate ? new Date(occ.dueDate) : new Date(),
           enableReminders: enableReminders !== undefined ? enableReminders : true,
           requireAttachment: requireAttachment || false,
           status: 'Pending',
@@ -74,11 +97,11 @@ const batchCreateTasks = async (req, res, next) => {
       const template = await tx.checklistTaskTemplate.create({
         data: {
           taskType: taskType || 'checklist',
-          departmentId: departmentId || null,
-          givenBy,
-          assignedTo,
-          description,
-          frequency,
+          departmentId: targetDeptId || null,
+          givenBy: givenBy || null,
+          assignedTo: assignedTo || null,
+          description: description || null,
+          frequency: frequency || null,
           startDate: startDate ? new Date(startDate) : null,
           workingDaysConfig: workingDaysConfig || null,
           enableReminders: enableReminders !== undefined ? enableReminders : true,
@@ -93,9 +116,9 @@ const batchCreateTasks = async (req, res, next) => {
       });
 
       // 4. Update department sequence counter
-      if (taskType !== 'delegation' && departmentId && tasksToCreate.length > 0) {
+      if (targetDeptId && tasksToCreate.length > 0) {
         await tx.checklistDepartment.update({
-          where: { id: departmentId },
+          where: { id: targetDeptId },
           data: { lastTaskSeq: startSeq + tasksToCreate.length }
         });
       }

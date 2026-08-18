@@ -1395,6 +1395,7 @@ model ProductionActualRun {
   updatedAt        DateTime?                  @map("updated_at")
   materials        ProductionActualMaterial[]
   jobCard          ProductionJobCard?         @relation(fields: [jobCardId], references: [id])
+  qcChecks         ProductionQcCheckpoint[]
 
   @@map("production_actual_runs")
 }
@@ -1411,31 +1412,33 @@ model ProductionActualMaterial {
 }
 
 model ProductionQcCheckpoint {
-  id                 String             @id @default(uuid())
-  jobCardId          String?            @map("job_card_id")
-  stage              String?            @map("stage")
-  dateOfTest         DateTime?          @map("date_of_test")
-  testedBy           String?            @map("tested_by")
-  wcPercent          Float?             @map("wc_percent")
-  bdAt110c           Float?             @map("bd_at_110c")
-  ccsAt100c          Float?             @map("ccs_at_100c")
-  aluminaPercent     Float?             @map("alumina_percent")
-  ironPercent        Float?             @map("iron_percent")
-  silicaPercent      Float?             @map("silica_percent")
-  calciumPercent     Float?             @map("calcium_percent")
-  initialSettingTime String?            @map("initial_setting_time")
-  finalSettingTime   String?            @map("final_setting_time")
-  flowOfMaterial     String?            @map("flow_of_material")
-  whatToBeMixed      String?            @map("what_to_be_mixed")
-  sieveAnalysis      String?            @map("sieve_analysis")
-  bdAt1100c          Float?             @map("bd_at_1100c")
-  ccsAt1100c         Float?             @map("ccs_at_1100c")
-  plcAt1100c         Float?             @map("plc_at_1100c")
-  remarks            String?            @map("remarks")
-  status             String?            @map("status")
-  createdAt          DateTime           @default(now()) @map("created_at")
-  updatedAt          DateTime?          @map("updated_at")
-  jobCard            ProductionJobCard? @relation(fields: [jobCardId], references: [id])
+  id                 String               @id @default(uuid())
+  jobCardId          String?              @map("job_card_id")
+  actualRunId        String?              @map("actual_run_id")
+  stage              String?              @map("stage")
+  dateOfTest         DateTime?            @map("date_of_test")
+  testedBy           String?              @map("tested_by")
+  wcPercent          Float?               @map("wc_percent")
+  bdAt110c           Float?               @map("bd_at_110c")
+  ccsAt100c          Float?               @map("ccs_at_100c")
+  aluminaPercent     Float?               @map("alumina_percent")
+  ironPercent        Float?               @map("iron_percent")
+  silicaPercent      Float?               @map("silica_percent")
+  calciumPercent     Float?               @map("calcium_percent")
+  initialSettingTime String?              @map("initial_setting_time")
+  finalSettingTime   String?              @map("final_setting_time")
+  flowOfMaterial     String?              @map("flow_of_material")
+  whatToBeMixed      String?              @map("what_to_be_mixed")
+  sieveAnalysis      String?              @map("sieve_analysis")
+  bdAt1100c          Float?               @map("bd_at_1100c")
+  ccsAt1100c         Float?               @map("ccs_at_1100c")
+  plcAt1100c         Float?               @map("plc_at_1100c")
+  remarks            String?              @map("remarks")
+  status             String?              @map("status")
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime?            @map("updated_at")
+  jobCard            ProductionJobCard?   @relation(fields: [jobCardId], references: [id])
+  actualRun          ProductionActualRun? @relation(fields: [actualRunId], references: [id])
 
   @@map("production_qc_checkpoints")
 }
@@ -2566,7 +2569,17 @@ model InventoryActivityLog {
 // ─────────────────────────────────────────────────────────────────
 // Checklist module models
 // ─────────────────────────────────────────────────────────────────
+model ChecklistMaster {
+  id        Int      @id @default(autoincrement())
+  firm      String?
+  givenBy   String?
+  doerName  String?
+  password  String?
+  role      String?
+  createdAt DateTime @default(now())
 
+  @@map("checklist_master")
+}
 model ChecklistDepartment {
   id            String                  @id @default(uuid())
   name          String                  @unique @map("name")

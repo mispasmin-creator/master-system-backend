@@ -7,8 +7,13 @@ const getAll = async (req, res, next) => {
     const data = await prisma.productionJobCard.findMany({
       include: {
         order: true,
-        actualRuns: { include: { materials: true } },
-        qcChecks: true,
+        actualRuns: { 
+          include: { materials: true },
+          orderBy: { createdAt: 'asc' }
+        },
+        qcChecks: {
+          orderBy: { createdAt: 'asc' }
+        },
       },
       orderBy: { createdAt: 'desc' }
     });

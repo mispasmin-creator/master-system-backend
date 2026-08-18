@@ -58,6 +58,9 @@ const sanitizeQcPayload = (body) => {
   if ('jobCardId' in payload && !payload.jobCardId) {
     payload.jobCardId = null;
   }
+  if ('actualRunId' in payload && !payload.actualRunId) {
+    payload.actualRunId = null;
+  }
   return payload;
 };
 
