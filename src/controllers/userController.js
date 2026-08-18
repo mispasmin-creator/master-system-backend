@@ -201,9 +201,37 @@ const updatePassword = async (req, res, next) => {
 // stays unchanged except for swapping Supabase calls for these endpoints.
 // ---------------------------------------------------------------------------
 
-const deriveRole = (pages) => {
-  const p = typeof pages === 'string' ? pages.trim().toLowerCase() : '';
-  return p === 'all' || p === 'super admin' ? 'admin' : 'user';
+const deriveRole = (pages, explicitRole) => {
+  if (explicitRole && typeof explicitRole === 'string' && explicitRole.trim()) {
+    return explicitRole.trim().toLowerCase() === 'admin' ? 'admin' : 'user';
+  }
+  if (!pages) return 'user';
+  if (typeof pages === 'string') {
+    const trimmed = pages.trim().toLowerCase();
+    if (trimmed === 'all' || trimmed === 'super admin' || trimmed === 'admin') return 'admin';
+    try {
+      const parsed = JSON.parse(pages);
+      return deriveRole(parsed);
+    } catch {
+      return 'user';
+    }
+  }
+  if (Array.isArray(pages)) {
+    return pages.some(
+      (p) =>
+        typeof p === 'string' &&
+        (p.toLowerCase() === 'all' || p.toLowerCase() === 'admin' || p.toLowerCase() === 'super admin')
+    )
+      ? 'admin'
+      : 'user';
+  }
+  if (typeof pages === 'object') {
+    if (pages.role === 'admin' || pages.isAdmin === true || pages.isSuperAdmin === true) return 'admin';
+    if (Array.isArray(pages.permissions) && pages.permissions.includes('admin')) return 'admin';
+    if (pages.admin || pages['admin']) return 'admin';
+    return 'user';
+  }
+  return 'user';
 };
 
 // "Firm Name" comes in as "all" (string) or an array of firm keys; the login
@@ -211,13 +239,22 @@ const deriveRole = (pages) => {
 // frontend already decodes JSON / "all" / CSV).
 const encodeFirm = (firm) => {
   if (Array.isArray(firm)) return firm.includes('all') ? 'all' : JSON.stringify(firm);
+  if (firm && typeof firm === 'object') return JSON.stringify(firm);
   return firm == null ? '' : String(firm);
 };
 
 // "Pages" is already a string from the UI ("viewonly"/"all"/"super admin" or a
 // JSON string); keep as-is, JSON-encode only if an object/array slips through.
-const encodePages = (pages) =>
-  pages == null ? null : typeof pages === 'string' ? pages : JSON.stringify(pages);
+// Seamlessly stores new structured permission shape (system -> pages -> firms/readOnly).
+const encodePages = (pages) => {
+  if (pages == null) return null;
+  if (typeof pages === 'string') return pages;
+  try {
+    return JSON.stringify(pages);
+  } catch (err) {
+    return String(pages);
+  }
+};
 
 // The password hash is deliberately never returned — the edit form asks for a
 // new password instead of pre-filling the stored one.
@@ -248,8 +285,8 @@ const listLoginUsers = async (req, res, next) => {
 // @access  Private
 const createLoginUser = async (req, res, next) => {
   try {
-    const username = req.body['User Name'];
-    const password = req.body['Password'];
+    const username = req.body['User Name'] || req.body.username || req.body.userName;
+    const password = req.body['Password'] || req.body.password;
     if (!username || !password) {
       res.status(400);
       throw new Error('Username and Password are required');
@@ -261,15 +298,29 @@ const createLoginUser = async (req, res, next) => {
       throw new Error('A user with this username already exists');
     }
 
-    const pages = req.body['Pages'];
+    const pages =
+      req.body['Pages'] ??
+      req.body.pages ??
+      req.body.page_access ??
+      req.body.pageAccess ??
+      req.body.systemPermissions ??
+      req.body.pageFirms;
+    const explicitRole = req.body.role || req.body.Role;
+    const firmName =
+      req.body['Firm Name'] ??
+      req.body.firm_name ??
+      req.body.firmName ??
+      req.body.firms;
+    const name = req.body['Name'] ?? req.body.name ?? null;
+
     const user = await prisma.login.create({
       data: {
         username,
         password: await hashPassword(password),
-        name: req.body['Name'] || null,
-        firm_name: encodeFirm(req.body['Firm Name']),
+        name,
+        firm_name: encodeFirm(firmName),
         page_access: encodePages(pages),
-        role: deriveRole(pages),
+        role: deriveRole(pages, explicitRole),
       },
     });
 
@@ -297,9 +348,37 @@ const updateLoginUser = async (req, res, next) => {
       throw new Error('User not found');
     }
 
-    const username = req.body['User Name'];
-    const password = req.body['Password'];
-    const pages = req.body['Pages'];
+    const username = req.body['User Name'] || req.body.username || req.body.userName;
+    const password = req.body['Password'] || req.body.password;
+    const pages =
+      req.body['Pages'] !== undefined
+        ? req.body['Pages']
+        : req.body.pages !== undefined
+        ? req.body.pages
+        : req.body.page_access !== undefined
+        ? req.body.page_access
+        : req.body.systemPermissions !== undefined
+        ? req.body.systemPermissions
+        : req.body.pageFirms !== undefined
+        ? req.body.pageFirms
+        : existing.page_access;
+    const explicitRole = req.body.role || req.body.Role;
+    const firmName =
+      req.body['Firm Name'] !== undefined
+        ? req.body['Firm Name']
+        : req.body.firm_name !== undefined
+        ? req.body.firm_name
+        : req.body.firmName !== undefined
+        ? req.body.firmName
+        : req.body.firms !== undefined
+        ? req.body.firms
+        : existing.firm_name;
+    const name =
+      req.body['Name'] !== undefined
+        ? req.body['Name']
+        : req.body.name !== undefined
+        ? req.body.name
+        : existing.name;
 
     // Uniqueness check if username changed
     if (username && username !== existing.username) {
@@ -322,10 +401,10 @@ const updateLoginUser = async (req, res, next) => {
       data: {
         username: username || existing.username,
         password: passwordToStore,
-        name: req.body['Name'] ?? existing.name,
-        firm_name: encodeFirm(req.body['Firm Name']),
+        name: name,
+        firm_name: encodeFirm(firmName),
         page_access: encodePages(pages),
-        role: deriveRole(pages),
+        role: deriveRole(pages, explicitRole),
       },
     });
 
