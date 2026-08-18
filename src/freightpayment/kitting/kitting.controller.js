@@ -152,4 +152,72 @@ const reopen = async (req, res, next) => {
   }
 };
 
-module.exports = { getAll, getOne, complete, reopen };
+// @desc    Create entry and complete kitting stage
+// @route   POST /api/freightpayment/kitting
+const createOrComplete = async (req, res, next) => {
+  try {
+    const { uniqueNumber } = req.body;
+    if (!uniqueNumber || !String(uniqueNumber).trim()) {
+      return res.status(400).json({ success: false, message: 'Unique Number is required.' });
+    }
+    const trimmedUniqueNumber = String(uniqueNumber).trim();
+
+    const now = new Date();
+    const b = req.body;
+    const payload = {
+      uniqueNumber: trimmedUniqueNumber,
+      ...(b.paymentNumber   !== undefined && { paymentNumber:   String(b.paymentNumber) }),
+      ...(b.firmName        !== undefined && { firmName:        String(b.firmName) }),
+      ...(b.fmsName         !== undefined && { fmsName:         String(b.fmsName) }),
+      ...(b.transporterName !== undefined && { transporterName: String(b.transporterName) }),
+      ...(b.vehicleNumber   !== undefined && { vehicleNumber:   String(b.vehicleNumber) }),
+      ...(b.fromLocation    !== undefined && { fromLocation:    String(b.fromLocation) }),
+      ...(b.toLocation      !== undefined && { toLocation:      String(b.toLocation) }),
+      ...(b.materialLoadDetails !== undefined && { materialLoadDetails: String(b.materialLoadDetails) }),
+      ...(b.biltyNumber     !== undefined && { biltyNumber:     String(b.biltyNumber) }),
+      ...(b.rateType        !== undefined && { rateType:        String(b.rateType) }),
+      ...(b.amount          != null        && { amount:          parseFloat(b.amount) }),
+      ...(b.postingAmount   != null        && { postingAmount:   parseFloat(b.postingAmount) }),
+      ...(b.biltyImageUrl   !== undefined && { biltyImageUrl:   String(b.biltyImageUrl) }),
+      ...(b.liftId          !== undefined && { liftId:          String(b.liftId) }),
+      ...(b.partyName       !== undefined && { partyName:       String(b.partyName) }),
+      ...(b.billingQty      != null        && { billingQty:      parseFloat(b.billingQty) }),
+      ...(b.billNumber      !== undefined && { billNumber:      String(b.billNumber) }),
+      ...(b.batchNumber     !== undefined && { batchNumber:     String(b.batchNumber) }),
+      ...(b.plannedAt       !== undefined && { plannedAt:       new Date(b.plannedAt) }),
+      ...(b.actualAt        !== undefined && { actualAt:        new Date(b.actualAt) }),
+      ...(b.remark          !== undefined && { remark:          String(b.remark) }),
+    };
+
+    const entry = await prisma.freightPaymentEntry.upsert({
+      where: { uniqueNumber: trimmedUniqueNumber },
+      update: payload,
+      create: payload,
+    });
+
+    const kitting = await prisma.freightPaymentKitting.upsert({
+      where: { entryId: entry.id },
+      update: {
+        status: 'Done',
+        actualAt: now,
+        nextPlannedAt: now,
+        remark: b.remark || b.remark3 || undefined,
+        updatedAt: now,
+      },
+      create: {
+        entryId: entry.id,
+        status: 'Done',
+        actualAt: now,
+        nextPlannedAt: now,
+        remark: b.remark || b.remark3 || null,
+        updatedAt: now,
+      },
+    });
+
+    res.status(201).json({ success: true, data: kitting });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { getAll, getOne, complete, reopen, createOrComplete };

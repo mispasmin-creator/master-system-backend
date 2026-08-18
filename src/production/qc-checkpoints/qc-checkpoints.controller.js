@@ -27,12 +27,47 @@ const getOne = async (req, res, next) => {
   }
 };
 
+const parseDate = (val) => {
+  if (!val || String(val).trim() === '' || String(val).trim() === '-') return null;
+  const text = String(val).trim();
+  const ddmmyyyy = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+  if (ddmmyyyy) {
+    const [, dd, mm, yy] = ddmmyyyy;
+    const yyyy = yy.length === 2 ? `20${yy}` : yy;
+    const d = new Date(`${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}T00:00:00.000Z`);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(text);
+  return isNaN(d.getTime()) ? null : d;
+};
+
+const sanitizeQcPayload = (body) => {
+  const payload = { ...body };
+  if ('dateOfTest' in payload) {
+    payload.dateOfTest = parseDate(payload.dateOfTest);
+  }
+  const floatFields = [
+    'wcPercent', 'bdAt110c', 'ccsAt100c', 'aluminaPercent', 'ironPercent',
+    'silicaPercent', 'calciumPercent', 'bdAt1100c', 'ccsAt1100c', 'plcAt1100c'
+  ];
+  floatFields.forEach((field) => {
+    if (field in payload && payload[field] !== undefined && payload[field] !== null) {
+      payload[field] = payload[field] === '' ? null : Number(payload[field]);
+    }
+  });
+  if ('jobCardId' in payload && !payload.jobCardId) {
+    payload.jobCardId = null;
+  }
+  return payload;
+};
+
 // @desc    Create qc-checkpoints
 // @route   POST /api/production/qc-checkpoints
 const create = async (req, res, next) => {
   try {
+    const payload = sanitizeQcPayload(req.body);
     const data = await prisma.productionQcCheckpoint.create({
-      data: req.body
+      data: payload
     });
     res.status(201).json({ success: true, data });
   } catch (error) {
@@ -44,9 +79,10 @@ const create = async (req, res, next) => {
 // @route   PATCH /api/production/qc-checkpoints/:id
 const update = async (req, res, next) => {
   try {
+    const payload = sanitizeQcPayload(req.body);
     const data = await prisma.productionQcCheckpoint.update({
       where: { id: req.params.id },
-      data: req.body
+      data: payload
     });
     res.json({ success: true, data });
   } catch (error) {
