@@ -1677,7 +1677,7 @@ model ProductionMaster {
   @@map("production_master")
 }
 
-model RefrasynthMaster {
+model StoreMaster {
   id                 Int       @id @default(autoincrement())
   category           String?   @map("category")
   groupName          String?   @map("group_name")
@@ -1704,10 +1704,10 @@ model RefrasynthMaster {
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime? @map("updated_at")
 
-  @@map("refrasynth_master")
+  @@map("store_master")
 }
 
-model RefrasynthUser {
+model StoreUser {
   id                                  Int       @id @default(autoincrement())
   username                            String    @unique @map("username")
   name                                String?   @map("name")
@@ -1751,311 +1751,368 @@ model RefrasynthUser {
   createdAt                           DateTime  @default(now()) @map("created_at")
   updatedAt                           DateTime? @map("updated_at")
 
-  @@map("refrasynth_user")
+  @@map("store_user")
 }
 
-model RefrasynthIndent {
-  id                  Int                     @id @default(autoincrement())
-  indentNumber        String?                 @map("indent_number")
-  timestamp           DateTime?               @map("timestamp")
-  firmName            String?                 @map("firm_name")
-  indenterName        String?                 @map("indenter_name")
-  department          String?                 @map("department")
-  areaOfUse           String?                 @map("area_of_use")
-  groupHead           String?                 @map("group_head")
-  productName         String?                 @map("product_name")
-  quantity            Float?                  @map("quantity")
-  uom                 String?                 @map("uom")
-  specifications      String?                 @map("specifications")
-  indentApprovedBy    String?                 @map("indent_approved_by")
-  indentType          String?                 @map("indent_type")
-  attachment          String?                 @map("attachment")
-  planned1            String?                 @map("planned1")
-  actual1             String?                 @map("actual1")
-  timeDelay1          String?                 @map("time_delay1")
-  vendorType          String?                 @map("vendor_type")
-  approvedQuantity    Float?                  @map("approved_quantity")
-  planned2            String?                 @map("planned2")
-  actual2             String?                 @map("actual2")
-  timeDelay2          String?                 @map("time_delay2")
-  vendorName1         String?                 @map("vendor_name1")
-  rate1               Float?                  @map("rate1")
-  paymentTerm1        String?                 @map("payment_term1")
-  vendorName2         String?                 @map("vendor_name2")
-  rate2               Float?                  @map("rate2")
-  paymentTerm2        String?                 @map("payment_term2")
-  vendorName3         String?                 @map("vendor_name3")
-  rate3               Float?                  @map("rate3")
-  paymentTerm3        String?                 @map("payment_term3")
-  comparisonSheet     String?                 @map("comparison_sheet")
-  planned3            String?                 @map("planned3")
-  actual3             String?                 @map("actual3")
-  timeDelay3          String?                 @map("time_delay3")
-  planned4            String?                 @map("planned4")
-  actual4             String?                 @map("actual4")
-  timeDelay4          String?                 @map("time_delay4")
-  approvedVendorName  String?                 @map("approved_vendor_name")
-  approvedRate        Float?                  @map("approved_rate")
-  approvedPaymentTerm String?                 @map("approved_payment_term")
-  approvedDate        DateTime?               @map("approved_date")
-  poRequired          String?                 @map("po_required")
-  poNumber            String?                 @map("po_number")
-  poCopy              String?                 @map("po_copy")
-  pendingPoQty        Float?                  @map("pending_po_qty")
-  planned5            String?                 @map("planned5")
-  actual5             String?                 @map("actual5")
-  timeDelay5          String?                 @map("time_delay5")
-  receiveStatus       String?                 @map("receive_status")
-  issuedQuantity      Float?                  @map("issued_quantity")
-  issueStatus         String?                 @map("issue_status")
-  liftingStatus       String?                 @map("lifting_status")
-  indentStatus        String?                 @map("indent_status")
-  pendingLiftQty      Float?                  @map("pending_lift_qty")
-  pendingQty          Float?                  @map("pending_qty")
-  totalQty            Float?                  @map("total_qty")
-  receivedQty         Float?                  @map("received_qty")
-  firmNameMatch       String?                 @map("firm_name_match")
-  createdAt           DateTime                @default(now()) @map("created_at")
-  updatedAt           DateTime?               @map("updated_at")
-  fullkittings        RefrasynthFullkitting[]
-  poLines             RefrasynthPoMaster[]
-  lifts               RefrasynthStoreIn[]
-  tallyEntries        RefrasynthTallyEntry[]
+model StoreIndent {
+  id               Int       @id @default(autoincrement())
+  indentNumber     String?   @map("indent_number")
+  timestamp        DateTime? @map("timestamp")
+  firmName         String?   @map("firm_name")
+  indenterName     String?   @map("indenter_name")
+  department       String?   @map("department")
+  areaOfUse        String?   @map("area_of_use")
+  groupHead        String?   @map("group_head")
+  productName      String?   @map("product_name")
+  quantity         Float?    @map("quantity")
+  uom              String?   @map("uom")
+  specifications   String?   @map("specifications")
+  indentApprovedBy String?   @map("indent_approved_by")
+  indentType       String?   @map("indent_type")
+  attachment       String?   @map("attachment")
+  indentStatus     String?   @map("indent_status")
+  receiveStatus    String?   @map("receive_status")
+  issuedQuantity   Float?    @map("issued_quantity")
+  issueStatus      String?   @map("issue_status")
+  liftingStatus    String?   @map("lifting_status")
+  pendingLiftQty   Float?    @map("pending_lift_qty")
+  pendingQty       Float?    @map("pending_qty")
+  totalQty         Float?    @map("total_qty")
+  receivedQty      Float?    @map("received_qty")
+  pendingPoQty     Float?    @map("pending_po_qty")
+  firmNameMatch    String?   @map("firm_name_match")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime? @map("updated_at")
 
-  @@map("refrasynth_indent")
+  indentApproval     StoreIndentApproval?
+  vendorQuotation    StoreVendorQuotation?
+  technicalApproval  StoreTechnicalApproval?
+  managementApproval StoreManagementApproval?
+  poLines            StorePoMaster[]
+  lifts              StoreLift[]
+
+  @@map("store_indent")
 }
 
-model RefrasynthPoMaster {
-  id                     Int                 @id @default(autoincrement())
-  poNumber               String?             @map("po_number")
-  internalCode           String?             @map("internal_code")
-  partyName              String?             @map("party_name")
-  product                String?             @map("product")
-  description            String?             @map("description")
-  quantity               Float?              @map("quantity")
-  unit                   String?             @map("unit")
-  rate                   Float?              @map("rate")
-  gst                    Float?              @map("gst")
-  gstPercent             Float?              @map("gst_percent")
-  discount               Float?              @map("discount")
-  discountPercent        Float?              @map("discount_percent")
-  amount                 Float?              @map("amount")
-  totalPoAmount          Float?              @map("total_po_amount")
-  packaging              Float?              @map("packaging")
-  forwarding             Float?              @map("forwarding")
-  packagingAndForwarding Float?              @map("packaging_and_forwarding")
-  pdf                    String?             @map("pdf")
-  quotationNumber        String?             @map("quotation_number")
-  quotationDate          DateTime?           @map("quotation_date")
-  enquiryNumber          String?             @map("enquiry_number")
-  enquiryDate            DateTime?           @map("enquiry_date")
-  term1                  String?             @map("term1")
-  term2                  String?             @map("term2")
-  term3                  String?             @map("term3")
-  term4                  String?             @map("term4")
-  term5                  String?             @map("term5")
-  term6                  String?             @map("term6")
-  term7                  String?             @map("term7")
-  term8                  String?             @map("term8")
-  term9                  String?             @map("term9")
-  term10                 String?             @map("term10")
-  deliveryDays           Float?              @map("delivery_days")
-  deliveryType           String?             @map("delivery_type")
-  deliveryDate           DateTime?           @map("delivery_date")
-  paymentTerms           String?             @map("payment_terms")
-  totalPaidAmount        Float?              @map("total_paid_amount")
-  outstandingAmount      Float?              @map("outstanding_amount")
-  status                 String?             @map("status")
-  firmNameMatch          String?             @map("firm_name_match")
-  indentId               Int?                @map("indent_id")
-  createdAt              DateTime            @default(now()) @map("created_at")
-  updatedAt              DateTime?           @map("updated_at")
-  payments               RefrasynthPayment[]
-  indent                 RefrasynthIndent?   @relation(fields: [indentId], references: [id])
+// Group Indent Approval page
+model StoreIndentApproval {
+  id               Int          @id @default(autoincrement())
+  indentId         Int?         @unique @map("indent_id")
+  approvedQuantity Float?       @map("approved_quantity")
+  vendorType       String?      @map("vendor_type")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime?    @map("updated_at")
+  indent           StoreIndent? @relation(fields: [indentId], references: [id])
 
-  @@map("refrasynth_po_master")
+  @@map("store_indent_approval")
 }
 
-model RefrasynthStoreIn {
-  id                     Int                    @id @default(autoincrement())
-  timestamp              DateTime?              @map("timestamp")
-  liftNumber             String?                @map("lift_number")
-  indentNo               String?                @map("indent_no")
-  poNumber               String?                @map("po_number")
-  poDate                 DateTime?              @map("po_date")
-  poCopy                 String?                @map("po_copy")
-  vendorName             String?                @map("vendor_name")
-  productName            String?                @map("product_name")
-  qty                    Float?                 @map("qty")
-  uom                    String?                @map("uom")
-  billStatus             String?                @map("bill_status")
-  billNo                 String?                @map("bill_no")
-  billAmount             Float?                 @map("bill_amount")
-  discountAmount         Float?                 @map("discount_amount")
-  typeOfBill             String?                @map("type_of_bill")
-  paymentType            String?                @map("payment_type")
-  advanceAmountIfAny     String?                @map("advance_amount_if_any")
-  photoOfBill            String?                @map("photo_of_bill")
-  leadTimeToLiftMaterial Float?                 @map("lead_time_to_lift_material")
-  transportationInclude  String?                @map("transportation_include")
-  transporterName        String?                @map("transporter_name")
-  amount                 Float?                 @map("amount")
-  vehicleNo              String?                @map("vehicle_no")
-  driverName             String?                @map("driver_name")
-  driverMobileNo         String?                @map("driver_mobile_no")
-  planned6               String?                @map("planned6")
-  actual6                String?                @map("actual6")
-  timeDelay6             String?                @map("time_delay6")
-  receivedQuantity       Float?                 @map("received_quantity")
-  photoOfProduct         String?                @map("photo_of_product")
-  damageOrder            String?                @map("damage_order")
-  quantityAsPerBill      Float?                 @map("quantity_as_per_bill")
-  priceAsPerPo           Float?                 @map("price_as_per_po")
-  remark                 String?                @map("remark")
-  warrantyStatus         String?                @map("warranty_status")
-  endDateWarrenty        DateTime?              @map("end_date_warrenty")
-  plannedHod             String?                @map("planned_hod")
-  actualHod              String?                @map("actual_hod")
-  hodStatus              String?                @map("hod_status")
-  hodRemark              String?                @map("hod_remark")
-  planned11              String?                @map("planned11")
-  actual11               String?                @map("actual11")
-  billStatusNew          String?                @map("bill_status_new")
-  billImageStatus        String?                @map("bill_image_status")
-  billRemark             String?                @map("bill_remark")
-  planned7               String?                @map("planned7")
-  actual7                String?                @map("actual7")
-  timeDelay7             String?                @map("time_delay7")
-  status                 String?                @map("status")
-  reason                 String?                @map("reason")
-  planned8               String?                @map("planned8")
-  actual8                String?                @map("actual8")
-  delay8                 String?                @map("delay8")
-  statusPurchaser        String?                @map("status_purchaser")
-  planned9               String?                @map("planned9")
-  actual9                String?                @map("actual9")
-  timeDelay9             String?                @map("time_delay9")
-  debitNoteCopy          String?                @map("debit_note_copy")
-  debitnotenumber        String?                @map("debit_note_number")
-  billCopy               String?                @map("bill_copy")
-  returnCopy             String?                @map("return_copy")
-  planned10              String?                @map("planned10")
-  actual10               String?                @map("actual10")
-  timeDelay10            String?                @map("time_delay10")
-  warrenty               String?                @map("warrenty")
-  billReceived           String?                @map("bill_received")
-  billAmount2            String?                @map("bill_amount2")
-  billImage              String?                @map("bill_image")
-  exchangeQty            String?                @map("exchange_qty")
-  billNumber2            String?                @map("bill_number2")
-  firmNameMatch          String?                @map("firm_name_match")
-  location               String?                @map("location")
-  materialStatus         String?                @map("material_status")
-  indentId               Int?                   @map("indent_id")
-  createdAt              DateTime               @default(now()) @map("created_at")
-  updatedAt              DateTime?              @map("updated_at")
-  payments               RefrasynthPayment[]
-  indent                 RefrasynthIndent?      @relation(fields: [indentId], references: [id])
-  tallyEntries           RefrasynthTallyEntry[]
+// Vendor Rate Update page (Regular single-vendor path + Three-Party triplicate path, same page)
+model StoreVendorQuotation {
+  id              Int          @id @default(autoincrement())
+  indentId        Int?         @unique @map("indent_id")
+  vendorType      String?      @map("vendor_type")
+  poRequired      String?      @map("po_required")
+  vendorName1     String?      @map("vendor_name1")
+  rate1           Float?       @map("rate1")
+  paymentTerm1    String?      @map("payment_term1")
+  vendorName2     String?      @map("vendor_name2")
+  rate2           Float?       @map("rate2")
+  paymentTerm2    String?      @map("payment_term2")
+  vendorName3     String?      @map("vendor_name3")
+  rate3           Float?       @map("rate3")
+  paymentTerm3    String?      @map("payment_term3")
+  comparisonSheet String?      @map("comparison_sheet")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime?    @map("updated_at")
+  indent          StoreIndent? @relation(fields: [indentId], references: [id])
 
-  @@map("refrasynth_store_in")
+  @@map("store_vendor_quotation")
 }
 
-model RefrasynthFullkitting {
-  id                  Int               @id @default(autoincrement())
-  timestamp           DateTime?         @map("timestamp")
-  indentNumber        String?           @map("indent_number")
-  vendorName          String?           @map("vendor_name")
-  productName         String?           @map("product_name")
-  qty                 Float?            @map("qty")
-  billNo              String?           @map("bill_no")
-  transportingInclude String?           @map("transporting_include")
-  transporterName     String?           @map("transporter_name")
-  amount              Float?            @map("amount")
-  amount1             Float?            @map("amount1")
-  rateType            String?           @map("rate_type")
-  vehicleNo           String?           @map("vehicle_no")
-  driverName          String?           @map("driver_name")
-  driverMobileNo      String?           @map("driver_mobile_no")
-  from                String?           @map("from_location")
-  to                  String?           @map("to_location")
-  materialLoadDetails String?           @map("material_load_details")
-  biltyNumber         String?           @map("bilty_number")
-  biltyImage          String?           @map("bilty_image")
-  planned             String?           @map("planned")
-  actual              String?           @map("actual")
-  timeDelay           String?           @map("time_delay")
-  status              String?           @map("status")
-  fmsName             String?           @map("fms_name")
-  firmNameMatch       String?           @map("firm_name_match")
-  indentId            Int?              @map("indent_id")
-  createdAt           DateTime          @default(now()) @map("created_at")
-  updatedAt           DateTime?         @map("updated_at")
-  indent              RefrasynthIndent? @relation(fields: [indentId], references: [id])
+// Technical Approval page (T1/T2/T3 vendor ranking)
+model StoreTechnicalApproval {
+  id          Int          @id @default(autoincrement())
+  indentId    Int?         @unique @map("indent_id")
+  vendor1Rank String?      @map("vendor1_rank")
+  vendor2Rank String?      @map("vendor2_rank")
+  vendor3Rank String?      @map("vendor3_rank")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime?    @map("updated_at")
+  indent      StoreIndent? @relation(fields: [indentId], references: [id])
 
-  @@map("refrasynth_fullkitting")
+  @@map("store_technical_approval")
 }
 
-model RefrasynthPayment {
-  id                Int                 @id @default(autoincrement())
-  timestamp         DateTime?           @map("timestamp")
-  uniqueNo          String?             @map("unique_no")
-  partyName         String?             @map("party_name")
-  poNumber          String?             @map("po_number")
-  totalPoAmount     Float?              @map("total_po_amount")
-  internalCode      String?             @map("internal_code")
-  product           String?             @map("product")
-  deliveryDate      DateTime?           @map("delivery_date")
-  paymentTerms      String?             @map("payment_terms")
-  numberOfDays      Float?              @map("number_of_days")
-  pdf               String?             @map("pdf")
-  payAmount         Float?              @map("pay_amount")
-  file              String?             @map("file")
-  remark            String?             @map("remark")
-  totalPaidAmount   Float?              @map("total_paid_amount")
-  outstandingAmount Float?              @map("outstanding_amount")
-  status            String?             @map("status")
-  planned           String?             @map("planned")
-  actual            String?             @map("actual")
-  delay             String?             @map("delay")
-  status1           String?             @map("status1")
-  paymentForm       String?             @map("payment_form")
-  paymentDone       Boolean?            @default(false) @map("payment_done")
-  firmNameMatch     String?             @map("firm_name_match")
-  poId              Int?                @map("po_id")
-  storeInId         Int?                @map("store_in_id")
-  createdAt         DateTime            @default(now()) @map("created_at")
-  updatedAt         DateTime?           @map("updated_at")
-  po                RefrasynthPoMaster? @relation(fields: [poId], references: [id])
-  storeIn           RefrasynthStoreIn?  @relation(fields: [storeInId], references: [id])
+// Mgmt Approval page (final vendor/rate selection)
+model StoreManagementApproval {
+  id                  Int          @id @default(autoincrement())
+  indentId            Int?         @unique @map("indent_id")
+  approvedVendorName  String?      @map("approved_vendor_name")
+  approvedRate        Float?       @map("approved_rate")
+  approvedPaymentTerm String?      @map("approved_payment_term")
+  approvedDate        DateTime?    @map("approved_date")
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime?    @map("updated_at")
+  indent              StoreIndent? @relation(fields: [indentId], references: [id])
 
-  @@map("refrasynth_payments")
+  @@map("store_management_approval")
 }
 
-model RefrasynthIssue {
-  id            Int       @id @default(autoincrement())
-  timestamp     DateTime? @map("timestamp")
-  issueNo       String?   @map("issue_no")
-  issueTo       String?   @map("issue_to")
-  uom           String?   @map("uom")
-  productName   String?   @map("product_name")
-  quantity      Float?    @map("quantity")
-  department    String?   @map("category")
-  groupHead     String?   @map("group_name")
-  planned1      String?   @map("planned1")
-  actual1       String?   @map("actual1")
-  timeDelay1    String?   @map("time_delay1")
-  status        String?   @map("status")
-  givenQty      Float?    @map("given_qty")
-  location      String?   @map("location")
-  firmNameMatch String?   @map("firm_name_match")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime? @map("updated_at")
+model StorePoMaster {
+  id                     Int            @id @default(autoincrement())
+  poNumber               String?        @map("po_number")
+  internalCode           String?        @map("internal_code")
+  partyName              String?        @map("party_name")
+  product                String?        @map("product")
+  description            String?        @map("description")
+  quantity               Float?         @map("quantity")
+  unit                   String?        @map("unit")
+  rate                   Float?         @map("rate")
+  gst                    Float?         @map("gst")
+  gstPercent             Float?         @map("gst_percent")
+  discount               Float?         @map("discount")
+  discountPercent        Float?         @map("discount_percent")
+  amount                 Float?         @map("amount")
+  totalPoAmount          Float?         @map("total_po_amount")
+  packaging              Float?         @map("packaging")
+  forwarding             Float?         @map("forwarding")
+  packagingAndForwarding Float?         @map("packaging_and_forwarding")
+  pdf                    String?        @map("pdf")
+  quotationNumber        String?        @map("quotation_number")
+  quotationDate          DateTime?      @map("quotation_date")
+  enquiryNumber          String?        @map("enquiry_number")
+  enquiryDate            DateTime?      @map("enquiry_date")
+  term1                  String?        @map("term1")
+  term2                  String?        @map("term2")
+  term3                  String?        @map("term3")
+  term4                  String?        @map("term4")
+  term5                  String?        @map("term5")
+  term6                  String?        @map("term6")
+  term7                  String?        @map("term7")
+  term8                  String?        @map("term8")
+  term9                  String?        @map("term9")
+  term10                 String?        @map("term10")
+  deliveryDays           Float?         @map("delivery_days")
+  deliveryType           String?        @map("delivery_type")
+  deliveryDate           DateTime?      @map("delivery_date")
+  paymentTerms           String?        @map("payment_terms")
+  totalPaidAmount        Float?         @map("total_paid_amount")
+  outstandingAmount      Float?         @map("outstanding_amount")
+  status                 String?        @map("status")
+  firmNameMatch          String?        @map("firm_name_match")
+  indentId               Int?           @map("indent_id")
+  createdAt              DateTime       @default(now()) @map("created_at")
+  updatedAt              DateTime?      @map("updated_at")
+  payments               StorePayment[]
+  indent                 StoreIndent?   @relation(fields: [indentId], references: [id])
 
-  @@map("refrasynth_issue")
+  @@map("store_po_master")
 }
 
-model RefrasynthInventory {
+// Material Receipt / Lifting page (GetLift.tsx) — parent of the per-lift stage tables below
+model StoreLift {
+  id                     Int       @id @default(autoincrement())
+  timestamp              DateTime? @map("timestamp")
+  liftNumber             String?   @map("lift_number")
+  indentId               Int?      @map("indent_id")
+  indentNo               String?   @map("indent_no")
+  poNumber               String?   @map("po_number")
+  poDate                 DateTime? @map("po_date")
+  poCopy                 String?   @map("po_copy")
+  vendorName             String?   @map("vendor_name")
+  productName            String?   @map("product_name")
+  qty                    Float?    @map("qty")
+  uom                    String?   @map("uom")
+  billNo                 String?   @map("bill_no")
+  billAmount             Float?    @map("bill_amount")
+  discountAmount         Float?    @map("discount_amount")
+  typeOfBill             String?   @map("type_of_bill")
+  paymentType            String?   @map("payment_type")
+  advanceAmountIfAny     String?   @map("advance_amount_if_any")
+  photoOfBill            String?   @map("photo_of_bill")
+  leadTimeToLiftMaterial Float?    @map("lead_time_to_lift_material")
+  transportationInclude  String?   @map("transportation_include")
+  transporterName        String?   @map("transporter_name")
+  amount                 Float?    @map("amount")
+  vehicleNo              String?   @map("vehicle_no")
+  driverName             String?   @map("driver_name")
+  driverMobileNo         String?   @map("driver_mobile_no")
+  firmNameMatch          String?   @map("firm_name_match")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime? @map("updated_at")
+
+  indent          StoreIndent?          @relation(fields: [indentId], references: [id])
+  check           StoreCheck?
+  hodApproval     StoreLiftHodApproval?
+  rejectGrn       StoreRejectGrn?
+  debitNote       StoreDebitNote?
+  billNotReceived StoreBillNotReceived?
+  payments        StorePayment[]
+  audit           StoreAudit?
+  rectify         StoreRectify?
+  reaudit         StoreReaudit?
+  tallyEntry      StoreTallyEntry?
+  againAudit      StoreAgainAudit?
+
+  @@map("store_lift")
+}
+
+// Store Check page (physical receiving/QC — sidebar mislabels this "HOD Check", component StoreIn.tsx)
+model StoreCheck {
+  id                Int        @id @default(autoincrement())
+  liftId            Int?       @unique @map("lift_id")
+  receivedQuantity  Float?     @map("received_quantity")
+  photoOfProduct    String?    @map("photo_of_product")
+  damageOrder       String?    @map("damage_order")
+  quantityAsPerBill Float?     @map("quantity_as_per_bill")
+  priceAsPerPo      Float?     @map("price_as_per_po")
+  remark            String?    @map("remark")
+  warrantyStatus    String?    @map("warranty_status")
+  endDateWarrenty   DateTime?  @map("end_date_warrenty")
+  billStatus        String?    @map("bill_status")
+  billNo            String?    @map("bill_no")
+  billAmount        Float?     @map("bill_amount")
+  billRemark        String?    @map("bill_remark")
+  photoOfBill       String?    @map("photo_of_bill")
+  location          String?    @map("location")
+  materialStatus    String?    @map("material_status")
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime?  @map("updated_at")
+  lift              StoreLift? @relation(fields: [liftId], references: [id])
+
+  @@map("store_check")
+}
+
+// HOD Approval page (sign-off + transport capture — sidebar mislabels this "Transporting Update", component HodStoreApproval.tsx)
+model StoreLiftHodApproval {
+  id                    Int        @id @default(autoincrement())
+  liftId                Int?       @unique @map("lift_id")
+  hodStatus             String?    @map("hod_status")
+  hodRemark             String?    @map("hod_remark")
+  transportationInclude String?    @map("transportation_include")
+  transporterName       String?    @map("transporter_name")
+  vehicleNo             String?    @map("vehicle_no")
+  driverName            String?    @map("driver_name")
+  driverMobileNo        String?    @map("driver_mobile_no")
+  amount                Float?     @map("amount")
+  createdAt             DateTime   @default(now()) @map("created_at")
+  updatedAt             DateTime?  @map("updated_at")
+  lift                  StoreLift? @relation(fields: [liftId], references: [id])
+
+  @@map("store_lift_hod_approval")
+}
+
+// Reject For GRN page
+model StoreRejectGrn {
+  id               Int        @id @default(autoincrement())
+  liftId           Int?       @unique @map("lift_id")
+  status           String?    @map("status")
+  reason           String?    @map("reason")
+  billCopyAttached String?    @map("bill_copy_attached")
+  sendDebitNote    String?    @map("send_debit_note")
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime?  @map("updated_at")
+  lift             StoreLift? @relation(fields: [liftId], references: [id])
+
+  @@map("store_reject_grn")
+}
+
+// Send Debit Note page
+model StoreDebitNote {
+  id              Int        @id @default(autoincrement())
+  liftId          Int?       @unique @map("lift_id")
+  debitNoteCopy   String?    @map("debit_note_copy")
+  debitNoteNumber String?    @map("debit_note_number")
+  billCopy        String?    @map("bill_copy")
+  returnCopy      String?    @map("return_copy")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime?  @map("updated_at")
+  lift            StoreLift? @relation(fields: [liftId], references: [id])
+
+  @@map("store_debit_note")
+}
+
+// Bill Not Received page (parallel branch off Lift when bill wasn't available at lift time)
+model StoreBillNotReceived {
+  id              Int        @id @default(autoincrement())
+  liftId          Int?       @unique @map("lift_id")
+  billStatusNew   String?    @map("bill_status_new")
+  billImageStatus String?    @map("bill_image_status")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime?  @map("updated_at")
+  lift            StoreLift? @relation(fields: [liftId], references: [id])
+
+  @@map("store_bill_not_received")
+}
+
+// Process for Payment (create) + Make Payment (complete) — one continuous record
+model StorePayment {
+  id                Int            @id @default(autoincrement())
+  timestamp         DateTime?      @map("timestamp")
+  uniqueNo          String?        @map("unique_no")
+  partyName         String?        @map("party_name")
+  poNumber          String?        @map("po_number")
+  totalPoAmount     Float?         @map("total_po_amount")
+  internalCode      String?        @map("internal_code")
+  product           String?        @map("product")
+  deliveryDate      DateTime?      @map("delivery_date")
+  paymentTerms      String?        @map("payment_terms")
+  numberOfDays      Float?         @map("number_of_days")
+  pdf               String?        @map("pdf")
+  payAmount         Float?         @map("pay_amount")
+  file              String?        @map("file")
+  remark            String?        @map("remark")
+  totalPaidAmount   Float?         @map("total_paid_amount")
+  outstandingAmount Float?         @map("outstanding_amount")
+  status            String?        @map("status")
+  paymentForm       String?        @map("payment_form")
+  paymentDone       Boolean?       @default(false) @map("payment_done")
+  firmNameMatch     String?        @map("firm_name_match")
+  poId              Int?           @map("po_id")
+  liftId            Int?           @map("lift_id")
+  createdAt         DateTime       @default(now()) @map("created_at")
+  updatedAt         DateTime?      @map("updated_at")
+  po                StorePoMaster? @relation(fields: [poId], references: [id])
+  lift              StoreLift?     @relation(fields: [liftId], references: [id])
+
+  @@map("store_payments")
+}
+
+// Store Issue page (create)
+model StoreIssue {
+  id            Int                 @id @default(autoincrement())
+  timestamp     DateTime?           @map("timestamp")
+  issueNo       String?             @map("issue_no")
+  issueTo       String?             @map("issue_to")
+  uom           String?             @map("uom")
+  productName   String?             @map("product_name")
+  quantity      Float?              @map("quantity")
+  department    String?             @map("category")
+  groupHead     String?             @map("group_name")
+  location      String?             @map("location")
+  firmNameMatch String?             @map("firm_name_match")
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime?           @map("updated_at")
+  approval      StoreIssueApproval?
+
+  @@map("store_issue")
+}
+
+// Issue Data page (approve/fulfil)
+model StoreIssueApproval {
+  id        Int         @id @default(autoincrement())
+  issueId   Int?        @unique @map("issue_id")
+  status    String?     @map("status")
+  givenQty  Float?      @map("given_qty")
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime?   @map("updated_at")
+  issue     StoreIssue? @relation(fields: [issueId], references: [id])
+
+  @@map("store_issue_approval")
+}
+
+model StoreInventory {
   id               Int       @id @default(autoincrement())
   itemName         String?   @map("item_name")
   groupHead        String?   @map("group_name")
@@ -2077,80 +2134,110 @@ model RefrasynthInventory {
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime? @map("updated_at")
 
-  @@map("refrasynth_inventory")
+  @@map("store_inventory")
 }
 
-model RefrasynthTallyEntry {
-  id                Int                @id @default(autoincrement())
-  timestamp         DateTime?          @map("timestamp")
-  indentNo          String?            @map("indent_no")
-  purchaseDate      DateTime?          @map("purchase_date")
-  indentDate        DateTime?          @map("indent_date")
-  indentNumber      String?            @map("indent_number")
-  liftNumber        String?            @map("lift_number")
-  poNumber          String?            @map("po_number")
-  materialInDate    DateTime?          @map("material_in_date")
-  productName       String?            @map("product_name")
-  billNo            String?            @map("bill_no")
-  qty               Float?             @map("qty")
-  partyName         String?            @map("party_name")
-  billAmt           Float?             @map("bill_amt")
-  billImage         String?            @map("bill_image")
-  billReceivedLater String?            @map("bill_received_later")
-  notReceivedBillNo String?            @map("not_received_bill_no")
-  location          String?            @map("location")
-  typeOfBills       String?            @map("type_of_bills")
-  productImage      String?            @map("product_image")
-  area              String?            @map("area")
-  indentedFor       String?            @map("indented_for")
-  approvedPartyName String?            @map("approved_party_name")
-  rate              Float?             @map("rate")
-  indentQty         Float?             @map("indent_qty")
-  totalRate         Float?             @map("total_rate")
-  firmName          String?            @map("firm_name")
-  firmNameMatch     String?            @map("firm_name_match")
-  hodStatus         String?            @map("hod_status")
-  hodRemark         String?            @map("hod_remark")
-  damageOrder       String?            @map("damage_order")
-  quantityAsPerBill String?            @map("quantity_as_per_bill")
-  priceAsPerPoCheck String?            @map("price_as_per_po_check")
-  receivingStatus   String?            @map("receiving_status")
-  receivedQuantity  Float?             @map("received_quantity")
-  planned1          String?            @map("planned1")
-  actual1           String?            @map("actual1")
-  delay1            String?            @map("delay1")
-  status1           String?            @map("status1")
-  remarks1          String?            @map("remarks1")
-  planned2          String?            @map("planned2")
-  actual2           String?            @map("actual2")
-  delay2            String?            @map("delay2")
-  status2           String?            @map("status2")
-  remarks2          String?            @map("remarks2")
-  planned3          String?            @map("planned3")
-  actual3           String?            @map("actual3")
-  delay3            String?            @map("delay3")
-  status3           String?            @map("status3")
-  remarks3          String?            @map("remarks3")
-  planned4          String?            @map("planned4")
-  actual4           String?            @map("actual4")
-  delay4            String?            @map("delay4")
-  status4           String?            @map("status4")
-  remarks4          String?            @map("remarks4")
-  planned5          String?            @map("planned5")
-  actual5           String?            @map("actual5")
-  status5           String?            @map("status5")
-  remarks5          String?            @map("remarks5")
-  indentId          Int?               @map("indent_id")
-  storeInId         Int?               @map("store_in_id")
-  createdAt         DateTime           @default(now()) @map("created_at")
-  updatedAt         DateTime?          @map("updated_at")
-  indent            RefrasynthIndent?  @relation(fields: [indentId], references: [id])
-  storeIn           RefrasynthStoreIn? @relation(fields: [storeInId], references: [id])
+// Audit Data sub-stage (first stage of the Audit Data page's 5-stage wizard — captures the general
+// receipt/material record; carries the fields the wizard's later sub-stages only reference, not re-capture)
+model StoreAudit {
+  id                Int        @id @default(autoincrement())
+  liftId            Int?       @unique @map("lift_id")
+  timestamp         DateTime?  @map("timestamp")
+  indentNo          String?    @map("indent_no")
+  purchaseDate      DateTime?  @map("purchase_date")
+  indentDate        DateTime?  @map("indent_date")
+  indentNumber      String?    @map("indent_number")
+  liftNumber        String?    @map("lift_number")
+  poNumber          String?    @map("po_number")
+  materialInDate    DateTime?  @map("material_in_date")
+  productName       String?    @map("product_name")
+  billNo            String?    @map("bill_no")
+  qty               Float?     @map("qty")
+  partyName         String?    @map("party_name")
+  billAmt           Float?     @map("bill_amt")
+  billImage         String?    @map("bill_image")
+  billReceivedLater String?    @map("bill_received_later")
+  notReceivedBillNo String?    @map("not_received_bill_no")
+  location          String?    @map("location")
+  typeOfBills       String?    @map("type_of_bills")
+  productImage      String?    @map("product_image")
+  area              String?    @map("area")
+  indentedFor       String?    @map("indented_for")
+  approvedPartyName String?    @map("approved_party_name")
+  rate              Float?     @map("rate")
+  indentQty         Float?     @map("indent_qty")
+  totalRate         Float?     @map("total_rate")
+  firmName          String?    @map("firm_name")
+  firmNameMatch     String?    @map("firm_name_match")
+  hodStatus         String?    @map("hod_status")
+  hodRemark         String?    @map("hod_remark")
+  damageOrder       String?    @map("damage_order")
+  quantityAsPerBill String?    @map("quantity_as_per_bill")
+  priceAsPerPoCheck String?    @map("price_as_per_po_check")
+  receivingStatus   String?    @map("receiving_status")
+  receivedQuantity  Float?     @map("received_quantity")
+  status            String?    @map("status")
+  remarks           String?    @map("remarks")
+  createdAt         DateTime   @default(now()) @map("created_at")
+  updatedAt         DateTime?  @map("updated_at")
+  lift              StoreLift? @relation(fields: [liftId], references: [id])
 
-  @@map("refrasynth_tally_entry")
+  @@map("store_audit")
 }
 
-model RefrasynthPcReport {
+// Rectify Mistake sub-stage
+model StoreRectify {
+  id        Int        @id @default(autoincrement())
+  liftId    Int?       @unique @map("lift_id")
+  status    String?    @map("status")
+  remarks   String?    @map("remarks")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime?  @map("updated_at")
+  lift      StoreLift? @relation(fields: [liftId], references: [id])
+
+  @@map("store_rectify")
+}
+
+// Reaudit Data sub-stage
+model StoreReaudit {
+  id        Int        @id @default(autoincrement())
+  liftId    Int?       @unique @map("lift_id")
+  status    String?    @map("status")
+  remarks   String?    @map("remarks")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime?  @map("updated_at")
+  lift      StoreLift? @relation(fields: [liftId], references: [id])
+
+  @@map("store_reaudit")
+}
+
+// Tally Entry sub-stage
+model StoreTallyEntry {
+  id        Int        @id @default(autoincrement())
+  liftId    Int?       @unique @map("lift_id")
+  status    String?    @map("status")
+  remarks   String?    @map("remarks")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime?  @map("updated_at")
+  lift      StoreLift? @relation(fields: [liftId], references: [id])
+
+  @@map("store_tally_entry")
+}
+
+// Again Audit sub-stage
+model StoreAgainAudit {
+  id        Int        @id @default(autoincrement())
+  liftId    Int?       @unique @map("lift_id")
+  status    String?    @map("status")
+  remarks   String?    @map("remarks")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime?  @map("updated_at")
+  lift      StoreLift? @relation(fields: [liftId], references: [id])
+
+  @@map("store_again_audit")
+}
+
+model StorePcReport {
   id            Int       @id @default(autoincrement())
   stage         String?   @unique @map("stage")
   totalPending  Int?      @map("total_pending")
@@ -2158,10 +2245,10 @@ model RefrasynthPcReport {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime? @map("updated_at")
 
-  @@map("refrasynth_pc_report")
+  @@map("store_pc_report")
 }
 
-model RefrasynthPaymentHistory {
+model StorePaymentHistory {
   id                     Int       @id @default(autoincrement())
   timestamp              DateTime? @map("timestamp")
   apPaymentNumber        String?   @map("ap_payment_number")
@@ -2173,7 +2260,6 @@ model RefrasynthPaymentHistory {
   remarks                String?   @map("remarks")
   anyAttachments         String?   @map("any_attachments")
   timestamp1             DateTime? @map("timestamp1")
-  planned                String?   @map("planned")
   paymentTerms           String?   @map("payment_terms")
   indentNo               String?   @map("indent_no")
   poNumber               String?   @map("po_number")
@@ -2200,7 +2286,7 @@ model RefrasynthPaymentHistory {
   createdAt              DateTime  @default(now()) @map("created_at")
   updatedAt              DateTime? @map("updated_at")
 
-  @@map("refrasynth_payment_history")
+  @@map("store_payment_history")
 }
 
 model RmSalesParty {
@@ -2580,6 +2666,7 @@ model ChecklistMaster {
 
   @@map("checklist_master")
 }
+
 model ChecklistDepartment {
   id            String                  @id @default(uuid())
   name          String                  @unique @map("name")
@@ -2875,9 +2962,9 @@ model ServiceJob {
   delay1   Float?    @map("delay_1")
 
   // Bill
-  paymentFormDone Boolean       @default(false) @map("payment_form_done")
-  billNo          String?       @map("bill_no")
-  billCopy        String?       @map("bill_copy")      // file URL
+  paymentFormDone Boolean @default(false) @map("payment_form_done")
+  billNo          String? @map("bill_no")
+  billCopy        String? @map("bill_copy") // file URL
 
   // Stage 2 — bill received
   planned2 DateTime? @map("planned_2")
@@ -3098,47 +3185,27 @@ model RepairMasterDropdown {
 
   @@map("repair_master_dropdown")
 }
-model RefrasynthReceived {
-  id                  BigInt    @id @default(autoincrement())
-  timestamp           DateTime? @db.Timestamptz
-  indentNumber        String?   @map("indent_number")
-  poDate               String?   @map("po_date")
-  poNumber             String?   @map("po_number")
-  vendor               String?
-  receivedStatus       String?   @map("received_status")
-  receivedQuantity     String?   @map("received_quantity")
-  uom                  String?
-  photoOfProduct       String?   @map("photo_of_product")
-  warrantyStatus       String?   @map("warranty_status")
-  endDate              String?   @map("end_date")
-  billStatus           String?   @map("bill_status")
-  billNumber           String?   @map("bill_number")
-  billAmount           String?   @map("bill_amount")
-  photoOfBill          String?   @map("photo_of_bill")
-  anyTransportations   String?   @map("any_transportations")
-  transporterName      String?   @map("transporter_name")
-  transportingAmount   String?   @map("transporting_amount")
 
-  @@map("refrasynth_received")
-}
+model StoreReceived {
+  id                 BigInt    @id @default(autoincrement())
+  timestamp          DateTime? @db.Timestamptz
+  indentNumber       String?   @map("indent_number")
+  poDate             String?   @map("po_date")
+  poNumber           String?   @map("po_number")
+  vendor             String?
+  receivedStatus     String?   @map("received_status")
+  receivedQuantity   String?   @map("received_quantity")
+  uom                String?
+  photoOfProduct     String?   @map("photo_of_product")
+  warrantyStatus     String?   @map("warranty_status")
+  endDate            String?   @map("end_date")
+  billStatus         String?   @map("bill_status")
+  billNumber         String?   @map("bill_number")
+  billAmount         String?   @map("bill_amount")
+  photoOfBill        String?   @map("photo_of_bill")
+  anyTransportations String?   @map("any_transportations")
+  transporterName    String?   @map("transporter_name")
+  transportingAmount String?   @map("transporting_amount")
 
-model RefrasynthStock {
-  id            BigInt    @id @default(autoincrement())
-  timestamp     DateTime? @db.Timestamptz
-  serialNumber  String?   @map("serial_number")
-  groupHead     String?   @map("group_head")
-  productName   String?   @map("product_name")
-  uom           String?
-  opening       String?
-  minLevel      String?   @map("min_level")
-  latestPrice   String?   @map("latest_price")
-  intransit     String?
-  received      String?
-  consumed      String?
-  currentStock  String?   @map("current_stock")
-  value         String?
-  required      String?
-  condition     String?
-
-  @@map("refrasynth_stock")
+  @@map("store_received")
 }

@@ -27,7 +27,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/purchase', require('./src/purchase/routes'));
 app.use('/api/order',    require('./src/order/routes'));
 app.use('/api/production', require('./src/production/routes'));
-app.use('/api/refrasynth', require('./src/refrasynth/routes'));
+app.use('/api/store',      require('./src/store/routes'));
 app.use('/api/rmsales',   require('./src/rmsales/routes'));
 app.use('/api/checklist', require('./src/checklist/routes'));
 app.use('/api/checklist-master', require('./src/checklist/checklist-master/checklist-master.routes'));
