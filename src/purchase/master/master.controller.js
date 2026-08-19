@@ -184,7 +184,17 @@ const createMasterEntry = async (req, res, next) => {
 
     if (type === 'Vendor Name') {
       const entry = await prisma.purchaseMaster.create({
-        data: { vendorName: vendorName?.trim() || null },
+        data: {
+          vendorName: vendorName?.trim() || null,
+          vendorNameKyc: req.body.vendorNameKyc?.trim() || null,
+          typeOfKycForm: req.body.typeOfKycForm?.trim() || null,
+          firmName: req.body.firmName?.trim() || null,
+          gstNumber: req.body.gstNumber?.trim() || null,
+          phoneNumber: req.body.phoneNumber?.trim() || null,
+          email: req.body.email?.trim() || null,
+          bankAccountNo: req.body.bankAccountNo?.trim() || null,
+          ifscCode: req.body.ifscCode?.trim() || null,
+        },
       });
       return res.status(201).json({ success: true, data: entry });
     }
@@ -193,7 +203,9 @@ const createMasterEntry = async (req, res, next) => {
       const entry = await prisma.purchaseMaster.create({
         data: {
           transporterName: transporterName?.trim() || null,
-          typeOfKycForm: 'Transportation',
+          transporterName2: req.body.transporterName2?.trim() || null,
+          rateType: req.body.rateType?.trim() || null,
+          typeOfKycForm: req.body.typeOfKycForm?.trim() || 'Transportation',
         },
       });
       return res.status(201).json({ success: true, data: entry });
@@ -222,8 +234,145 @@ const createMasterEntry = async (req, res, next) => {
       return res.status(201).json({ success: true, data: { tl, master } });
     }
 
-    res.status(400);
-    throw new Error('Invalid type.');
+    // Generic / other category creation (Firms, Indent Types, Rate Types, etc.)
+    const entry = await prisma.purchaseMaster.create({
+      data: {
+        generatedBy: req.body.generatedBy?.trim() || null,
+        vendorName: vendorName?.trim() || null,
+        rawMaterialName: rawMaterialName?.trim() || null,
+        typeOfIndent: req.body.typeOfIndent?.trim() || null,
+        typeOfRate: req.body.typeOfRate?.trim() || req.body.rateType?.trim() || null,
+        areaLifting: req.body.areaLifting?.trim() || null,
+        type: req.body.type?.trim() || null,
+        transporterName: transporterName?.trim() || null,
+        transporterName2: req.body.transporterName2?.trim() || null,
+        firmName: req.body.firmName?.trim() || null,
+        typeOfKycForm: req.body.typeOfKycForm?.trim() || null,
+        vendorNameKyc: req.body.vendorNameKyc?.trim() || null,
+        productName: req.body.productName?.trim() || null,
+        fmsName: req.body.fmsName?.trim() || null,
+        rateType: req.body.rateType?.trim() || req.body.typeOfRate?.trim() || null,
+        paymentTerm: req.body.paymentTerm?.trim() || null,
+        uom: req.body.uom?.trim() || null,
+        gstNumber: req.body.gstNumber?.trim() || null,
+        bankAccountNo: req.body.bankAccountNo?.trim() || null,
+        ifscCode: req.body.ifscCode?.trim() || null,
+        phoneNumber: req.body.phoneNumber?.trim() || null,
+        email: req.body.email?.trim() || null,
+      },
+    });
+    return res.status(201).json({ success: true, data: entry });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update a single Master entry by ID
+// @route   PATCH /api/purchase/master/:id
+// @access  Private
+const updateMasterEntry = async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      res.status(400);
+      throw new Error('Invalid master ID.');
+    }
+
+    const existing = await prisma.purchaseMaster.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      res.status(404);
+      throw new Error('Master entry not found.');
+    }
+
+    const {
+      generatedBy,
+      vendorName,
+      rawMaterialName,
+      typeOfIndent,
+      typeOfRate,
+      areaLifting,
+      type,
+      transporterName,
+      transporterName2,
+      firmName,
+      typeOfKycForm,
+      vendorNameKyc,
+      productName,
+      fmsName,
+      rateType,
+      paymentTerm,
+      uom,
+      gstNumber,
+      bankAccountNo,
+      ifscCode,
+      phoneNumber,
+      email,
+    } = req.body;
+
+    const data = {};
+    if (generatedBy !== undefined) data.generatedBy = generatedBy?.trim() || null;
+    if (vendorName !== undefined) data.vendorName = vendorName?.trim() || null;
+    if (rawMaterialName !== undefined) data.rawMaterialName = rawMaterialName?.trim() || null;
+    if (typeOfIndent !== undefined) data.typeOfIndent = typeOfIndent?.trim() || null;
+    if (typeOfRate !== undefined) data.typeOfRate = typeOfRate?.trim() || null;
+    if (areaLifting !== undefined) data.areaLifting = areaLifting?.trim() || null;
+    if (type !== undefined) data.type = type?.trim() || null;
+    if (transporterName !== undefined) data.transporterName = transporterName?.trim() || null;
+    if (transporterName2 !== undefined) data.transporterName2 = transporterName2?.trim() || null;
+    if (firmName !== undefined) data.firmName = firmName?.trim() || null;
+    if (typeOfKycForm !== undefined) data.typeOfKycForm = typeOfKycForm?.trim() || null;
+    if (vendorNameKyc !== undefined) data.vendorNameKyc = vendorNameKyc?.trim() || null;
+    if (productName !== undefined) data.productName = productName?.trim() || null;
+    if (fmsName !== undefined) data.fmsName = fmsName?.trim() || null;
+    if (rateType !== undefined) data.rateType = rateType?.trim() || null;
+    if (paymentTerm !== undefined) data.paymentTerm = paymentTerm?.trim() || null;
+    if (uom !== undefined) data.uom = uom?.trim() || null;
+    if (gstNumber !== undefined) data.gstNumber = gstNumber?.trim() || null;
+    if (bankAccountNo !== undefined) data.bankAccountNo = bankAccountNo?.trim() || null;
+    if (ifscCode !== undefined) data.ifscCode = ifscCode?.trim() || null;
+    if (phoneNumber !== undefined) data.phoneNumber = phoneNumber?.trim() || null;
+    if (email !== undefined) data.email = email?.trim() || null;
+    data.updatedAt = new Date();
+
+    const updated = await prisma.purchaseMaster.update({
+      where: { id },
+      data,
+    });
+
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Delete a single Master entry by ID
+// @route   DELETE /api/purchase/master/:id
+// @access  Private
+const deleteMasterEntry = async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    if (isNaN(id)) {
+      res.status(400);
+      throw new Error('Invalid master ID.');
+    }
+
+    const existing = await prisma.purchaseMaster.findUnique({
+      where: { id },
+    });
+
+    if (!existing) {
+      res.status(404);
+      throw new Error('Master entry not found.');
+    }
+
+    await prisma.purchaseMaster.delete({
+      where: { id },
+    });
+
+    res.json({ success: true, message: 'Master entry deleted successfully' });
   } catch (error) {
     next(error);
   }
@@ -236,4 +385,6 @@ module.exports = {
   getIndentOptions,
   getAllOptions,
   createMasterEntry,
+  updateMasterEntry,
+  deleteMasterEntry,
 };

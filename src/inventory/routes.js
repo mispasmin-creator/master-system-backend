@@ -7,6 +7,7 @@ router.use('/trading-material', require('./trading-material/tradingMaterial.rout
 router.use('/stock-adjustment', require('./stock-adjustment/stockAdjustment.routes'));
 router.use('/history', require('./history/history.routes'));
 router.use('/settings', require('./master/master.routes'));
+router.use('/master', require('./master/master.routes'));
 
 // Overview / status route
 router.get('/', (req, res) => {

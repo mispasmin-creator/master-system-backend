@@ -29,9 +29,11 @@ app.use('/api/order',    require('./src/order/routes'));
 app.use('/api/production', require('./src/production/routes'));
 app.use('/api/store',      require('./src/store/routes'));
 app.use('/api/rmsales',   require('./src/rmsales/routes'));
+app.use('/api/rm-sales',  require('./src/rmsales/routes'));
 app.use('/api/checklist', require('./src/checklist/routes'));
 app.use('/api/checklist-master', require('./src/checklist/checklist-master/checklist-master.routes'));
 app.use('/api/freightpayment', require('./src/freightpayment/routes'));
+app.use('/api/freight-payment', require('./src/freightpayment/routes'));
 app.use('/api/inventory', require('./src/inventory/routes'));
 app.use('/api/payment',   require('./src/payment/routes')); // Make Payment subsystem
 app.use('/api/services',  require('./src/services/routes'));

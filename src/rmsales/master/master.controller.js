@@ -78,9 +78,13 @@ const getMasterData = async (req, res, next) => {
     const masterTransports = masterTransportRows.map(m => m.transportType).filter(Boolean);
     const transportTypes = Array.from(new Set([...defaultTransports, ...masterTransports])).sort();
 
+    // Also include raw rows for settings/master table
+    const rows = await prisma.rmSalesMaster.findMany({ orderBy: { createdAt: 'desc' } });
+
     res.json({
       success: true,
       data: {
+        items: rows,
         firms,
         parties,
         products,
@@ -93,4 +97,95 @@ const getMasterData = async (req, res, next) => {
   }
 };
 
-module.exports = { getMasterData };
+// @desc    All RM Sales master rows
+// @route   GET /api/rmsales/master/rows
+const listMasterRows = async (req, res, next) => {
+  try {
+    const rows = await prisma.rmSalesMaster.findMany({ orderBy: { createdAt: 'desc' } });
+    res.json({ success: true, data: rows });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Create a Master entry in rmsales_master
+// @route   POST /api/rmsales/master
+const createMasterEntry = async (req, res, next) => {
+  try {
+    const {
+      type, vendorName, partyName, rawMaterialName, productName,
+      transporterName, transportType, firmName
+    } = req.body;
+
+    const pName = partyName || (type === 'Party Name' || type === 'Vendor Name' ? vendorName : null);
+    const prodName = productName || (type === 'Raw Material' || type === 'Product Name' ? rawMaterialName : null);
+    const tType = transportType || (type === 'Transporter' ? transporterName : null);
+
+    const hasAny = pName || prodName || tType || firmName;
+    if (!hasAny) {
+      res.status(400);
+      throw new Error('Please provide at least one valid field to add.');
+    }
+
+    const entry = await prisma.rmSalesMaster.create({
+      data: {
+        firmName: firmName?.trim() || null,
+        partyName: pName?.trim() || null,
+        productName: prodName?.trim() || null,
+        transportType: tType?.trim() || null,
+      }
+    });
+
+    res.status(201).json({ success: true, data: entry });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update a Master entry in rmsales_master
+// @route   PATCH /api/rmsales/master/:id
+const updateMasterEntry = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const existing = await prisma.rmSalesMaster.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Master entry not found' });
+    }
+
+    const { firmName, partyName, productName, transportType } = req.body;
+    const data = {};
+    if (firmName !== undefined) data.firmName = firmName?.trim() || null;
+    if (partyName !== undefined) data.partyName = partyName?.trim() || null;
+    if (productName !== undefined) data.productName = productName?.trim() || null;
+    if (transportType !== undefined) data.transportType = transportType?.trim() || null;
+    data.updatedAt = new Date();
+
+    const updated = await prisma.rmSalesMaster.update({
+      where: { id },
+      data,
+    });
+
+    res.json({ success: true, data: updated });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Delete a Master entry in rmsales_master
+// @route   DELETE /api/rmsales/master/:id
+const deleteMasterEntry = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const existing = await prisma.rmSalesMaster.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Master entry not found' });
+    }
+
+    await prisma.rmSalesMaster.delete({ where: { id } });
+    res.json({ success: true, message: 'Master entry deleted successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+module.exports = { getMasterData, listMasterRows, createMasterEntry, updateMasterEntry, deleteMasterEntry };

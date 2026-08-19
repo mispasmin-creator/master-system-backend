@@ -4,7 +4,7 @@ const { protect } = require('../../middleware/auth');
 const { getAll, getOne, create, getDispatchInfo } = require('./entry.controller');
 
 router.route('/')
-  .get(protect, getAll)
+  .get(getAll)
   .post(protect, create);
 
 router.get('/dispatch-lookup/:liftId', protect, getDispatchInfo);

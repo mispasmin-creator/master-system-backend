@@ -1,10 +1,12 @@
 const express = require('express');
 const router = express.Router();
+const { protect } = require('../../middleware/auth');
 const controller = require('./master.controller');
 
 // Master Dropdowns
 router.get('/', controller.getMasterData);
-router.post('/fms', controller.createFms);
-router.delete('/fms/:id', controller.deleteFms);
+router.post('/', protect, controller.createMasterEntry);
+router.post('/fms', protect, controller.createFms);
+router.delete('/fms/:id', protect, controller.deleteFms);
 
 module.exports = router;
