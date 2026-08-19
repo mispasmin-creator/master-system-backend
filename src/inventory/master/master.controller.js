@@ -83,7 +83,92 @@ const updateSettings = async (req, res, next) => {
   }
 };
 
+// @desc    Get Inventory Master Table data (raw materials, trading materials, finished goods)
+// @route   GET /api/inventory/master
+const listMasterRows = async (req, res, next) => {
+  try {
+    const [rawMaterials, finishedGoods, tradingMaterials] = await Promise.all([
+      prisma.inventoryRawMaterial.findMany({ orderBy: { createdAt: 'desc' } }),
+      prisma.inventoryFinishedGoods.findMany({ orderBy: { createdAt: 'desc' } }),
+      prisma.inventoryTradingMaterial.findMany({ orderBy: { createdAt: 'desc' } }),
+    ]);
+
+    const formattedRaw = rawMaterials.map((r) => ({
+      id: r.id,
+      itemName: r.itemName,
+      rawMaterialName: r.itemName,
+      firmName: r.firmName,
+      unit: r.unit || 'MT',
+      opStock: r.opStock,
+      productRate: r.productRate,
+      category: 'Raw Material',
+    }));
+
+    const formattedTrading = tradingMaterials.map((r) => ({
+      id: r.id,
+      itemName: r.productName,
+      rawMaterialName: r.productName,
+      firmName: r.firmName,
+      unit: r.unit || 'MT',
+      opStock: r.opStock,
+      category: 'Trading Material',
+    }));
+
+    const items = [...formattedRaw, ...formattedTrading];
+
+    res.json({
+      success: true,
+      data: {
+        items,
+        rawMaterials,
+        finishedGoods,
+        tradingMaterials,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Create/Add entry in Inventory Master
+// @route   POST /api/inventory/master
+const createMasterEntry = async (req, res, next) => {
+  try {
+    const { itemName, rawMaterialName, productName, firmName, unit, productRate, opStock, type, vendorName } = req.body;
+    const name = (itemName || rawMaterialName || productName || vendorName || '').trim();
+    if (!name) {
+      res.status(400);
+      throw new Error('Item or Material Name is required.');
+    }
+
+    const firm = (firmName || 'PMMPL').trim();
+
+    const entry = await prisma.inventoryRawMaterial.upsert({
+      where: {
+        firmName_itemName: {
+          firmName: firm,
+          itemName: name,
+        }
+      },
+      update: {},
+      create: {
+        firmName: firm,
+        itemName: name,
+        unit: unit || 'MT',
+        productRate: productRate ? parseFloat(productRate) : 0,
+        opStock: opStock ? parseFloat(opStock) : 0,
+      }
+    });
+
+    res.status(201).json({ success: true, data: entry });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getSettings,
   updateSettings,
+  listMasterRows,
+  createMasterEntry,
 };

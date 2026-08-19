@@ -5,7 +5,9 @@ const bcrypt = require('bcryptjs');
 // GET /api/services/master
 const getMasterDropdowns = async (req, res) => {
   try {
-    const rows = await prisma.serviceMasterDropdown.findMany();
+    const rows = await prisma.serviceMasterDropdown.findMany({
+      orderBy: { createdAt: 'desc' }
+    });
 
     const departments = [...new Set(rows.map(r => r.department).filter(Boolean))];
     const groupHeads = [...new Set(rows.map(r => r.groupHead).filter(Boolean))];
@@ -15,6 +17,7 @@ const getMasterDropdowns = async (req, res) => {
     res.json({
       success: true,
       data: {
+        items: rows,
         departments: departments.length ? departments : ["IT", "Logistics", "Maintenance", "Finance", "HR", "Store"],
         groupHeads: groupHeads.length ? groupHeads : ["Management", "Operations", "Finance Head"],
         firmNames: firmNames.length ? firmNames : ["PMMPL", "PMM Logisol", "PMM Retail", "PMM Infra"],
@@ -24,6 +27,69 @@ const getMasterDropdowns = async (req, res) => {
   } catch (err) {
     console.error('getMasterDropdowns error:', err);
     res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// POST /api/services/master
+const createMasterDropdown = async (req, res) => {
+  try {
+    const { department, groupHead, firmName, fmsName, type, vendorName } = req.body;
+    const item = await prisma.serviceMasterDropdown.create({
+      data: {
+        department: department?.trim() || null,
+        groupHead: groupHead?.trim() || null,
+        firmName: firmName?.trim() || null,
+        fmsName: fmsName?.trim() || (type === 'FMS Name' || type === 'Vendor Name' ? vendorName : null),
+      }
+    });
+    res.status(201).json({ success: true, data: item });
+  } catch (err) {
+    console.error('createMasterDropdown error:', err);
+    res.status(400).json({ success: false, error: err.message });
+  }
+};
+
+// PATCH /api/services/master/:id
+const updateMasterDropdown = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await prisma.serviceMasterDropdown.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Master entry not found' });
+    }
+
+    const { department, groupHead, firmName, fmsName } = req.body;
+    const data = {};
+    if (department !== undefined) data.department = department?.trim() || null;
+    if (groupHead !== undefined) data.groupHead = groupHead?.trim() || null;
+    if (firmName !== undefined) data.firmName = firmName?.trim() || null;
+    if (fmsName !== undefined) data.fmsName = fmsName?.trim() || null;
+
+    const updated = await prisma.serviceMasterDropdown.update({
+      where: { id },
+      data,
+    });
+    res.json({ success: true, data: updated });
+  } catch (err) {
+    console.error('updateMasterDropdown error:', err);
+    res.status(400).json({ success: false, error: err.message });
+  }
+};
+
+// DELETE /api/services/master/:id
+const deleteMasterDropdown = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await prisma.serviceMasterDropdown.findUnique({ where: { id } });
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Master entry not found' });
+    }
+
+    await prisma.serviceMasterDropdown.delete({ where: { id } });
+    res.json({ success: true, message: 'Master entry deleted successfully' });
+  } catch (err) {
+    console.error('deleteMasterDropdown error:', err);
+    res.status(400).json({ success: false, error: err.message });
   }
 };
 
@@ -154,6 +220,9 @@ const deleteUser = async (req, res) => {
 
 module.exports = {
   getMasterDropdowns,
+  createMasterDropdown,
+  updateMasterDropdown,
+  deleteMasterDropdown,
   getUsers,
   createUser,
   updateUser,

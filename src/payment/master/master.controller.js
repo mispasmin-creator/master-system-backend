@@ -31,9 +31,61 @@ exports.getMasterData = async (req, res, next) => {
         firms: DEFAULT_FIRMS,
         typeOfFunding: DEFAULT_TYPE_OF_FUNDING,
         paymentModes: DEFAULT_PAYMENT_MODES,
-        vendors: vendors.map(v => v.vendorName)
+        vendors: vendors.map(v => v.vendorName),
+        items: fmsList
       }
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/payment/master
+ * Create new Payment master (Vendor or FMS)
+ */
+exports.createMasterEntry = async (req, res, next) => {
+  try {
+    const {
+      type, vendorName, fmsName, firmName, typeOfFunding, paymentMode,
+      vendorType, gstNumber, panNumber, mobileNumber, email, address
+    } = req.body;
+
+    if (type === 'Vendor Name' || type === 'Vendor' || (vendorName && !fmsName)) {
+      const vName = (vendorName || '').trim();
+      if (!vName) {
+        return res.status(400).json({ success: false, error: 'Vendor name is required.' });
+      }
+      const created = await prisma.paymentVendor.create({
+        data: {
+          vendorName: vName,
+          vendorType: vendorType?.trim() || null,
+          gstNumber: gstNumber?.trim() || null,
+          panNumber: panNumber?.trim() || null,
+          mobileNumber: mobileNumber?.trim() || null,
+          email: email?.trim() || null,
+          address: address?.trim() || null,
+          status: 'Active',
+        }
+      });
+      return res.status(201).json({ success: true, data: created });
+    }
+
+    const name = (fmsName || vendorName || req.body['FMS Name'] || '').trim();
+    if (!name) {
+      return res.status(400).json({ success: false, error: 'FMS or Master Name is required.' });
+    }
+
+    const created = await prisma.paymentFmsMaster.create({
+      data: {
+        fmsName: name,
+        firmName: firmName?.trim() || 'PMMPL',
+        typeOfFunding: typeOfFunding?.trim() || '',
+        paymentMode: paymentMode?.trim() || 'NEFT',
+      }
+    });
+
+    res.status(201).json({ success: true, data: created });
   } catch (error) {
     next(error);
   }
