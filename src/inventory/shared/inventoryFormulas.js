@@ -1,7 +1,12 @@
 /**
  * Inventory Pure Calculation Formulas
- * Ported verbatim from database constraints and old app formulas
- * (purchase_inventory_master.sql, finished_goods_inventory_master.sql, trading_material_master.sql)
+ * Ported verbatim from the reference app's live logic (src/services/api.js,
+ * src/pages/TradingMaterial.jsx, src/pages/StockAdjustment.jsx in
+ * _reference/Inventory-Management-System) — the real schema stores max_qty/
+ * optimum_qty as plain user-entered fields (not generated columns) and no
+ * product rate anywhere on the master rows, so "current level" and rate-based
+ * valuations are computed here from op_stock + live cross-module data, exactly
+ * like the reference app does against its five separate Supabase projects.
  */
 
 /**
@@ -15,40 +20,36 @@ function dailyConsumption(annualConsumption) {
 }
 
 /**
- * Calculates optimum stock quantity.
- * Formula: round(((annual_consumption / 365.0) * lead_time_days * safety_factor), 3)
+ * Derives stock warning color flag/band.
+ * When max_qty is set: 0 => 'No Stock', >max => 'Excess Stock', else banded
+ * by actual/max ratio (>=66% Normal, >=33% Medium, else Low).
+ * Else when optimum_qty is set: banded by actual/optimum percentage
+ * (<33% Low, <66% Medium, <=100% Normal, else Excess).
  */
-function optimumStock(annualConsumption, leadTimeDays, safetyFactor = 1) {
-  const ann = Number(annualConsumption);
-  const lead = Number(leadTimeDays);
-  const sf = Number(safetyFactor);
-  if (!Number.isFinite(ann) || !Number.isFinite(lead) || !Number.isFinite(sf)) return 0;
-  const opt = (ann / 365.0) * lead * sf;
-  return Math.round(opt * 1000) / 1000;
+function colour(actualLevel, maxQty, optimumQty) {
+  const actual = Number(actualLevel) || 0;
+  const max = Number(maxQty);
+  if (Number.isFinite(max) && max !== 0) {
+    if (actual === 0) return 'No Stock';
+    if (actual > max) return 'Excess Stock';
+    const ratio = actual / max;
+    if (ratio >= 0.66) return 'Normal Stock';
+    if (ratio >= 0.33) return 'Medium Stock';
+    return 'Low Stock';
+  }
+  const optimum = Number(optimumQty);
+  if (Number.isFinite(optimum) && optimum !== 0) {
+    const pct = (actual / optimum) * 100;
+    if (pct < 33) return 'Low Stock';
+    if (pct < 66) return 'Medium Stock';
+    if (pct <= 100) return 'Normal Stock';
+    return 'Excess Stock';
+  }
+  return '';
 }
 
 /**
- * Calculates maximum stock threshold.
- * Formula: round((optimum_stock * 1.5), 3)
- */
-function maxStock(annualConsumption, leadTimeDays, safetyFactor = 1) {
-  const opt = optimumStock(annualConsumption, leadTimeDays, safetyFactor);
-  return Math.round(opt * 1.5 * 1000) / 1000;
-}
-
-/**
- * Calculates optimum stock total monetary value.
- * Formula: round((optimum_stock * product_rate), 2)
- */
-function optimumStockTotal(annualConsumption, leadTimeDays, safetyFactor, productRate) {
-  const opt = optimumStock(annualConsumption, leadTimeDays, safetyFactor);
-  const rate = Number(productRate);
-  if (!Number.isFinite(rate)) return 0;
-  return Math.round(opt * rate * 100) / 100;
-}
-
-/**
- * Calculates current actual stock monetary valuation.
+ * Current actual stock monetary valuation.
  * Formula: round((actual_level * product_rate), 2)
  */
 function stockTotal(actualLevel, productRate) {
@@ -59,20 +60,20 @@ function stockTotal(actualLevel, productRate) {
 }
 
 /**
- * Derives stock warning color flag.
- * Formula: actual_level > max_stock => 'Excess Stock', else ''
+ * Optimum stock monetary valuation.
+ * Formula: round((optimum_qty * product_rate), 2)
  */
-function colour(actualLevel, annualConsumption, leadTimeDays, safetyFactor = 1) {
-  const lvl = Number(actualLevel);
-  if (!Number.isFinite(lvl)) return '';
-  const max = maxStock(annualConsumption, leadTimeDays, safetyFactor);
-  return lvl > max ? 'Excess Stock' : '';
+function optimumStockTotal(optimumQty, productRate) {
+  const opt = Number(optimumQty);
+  const rate = Number(productRate);
+  if (!Number.isFinite(opt) || !Number.isFinite(rate)) return 0;
+  return Math.round(opt * rate * 100) / 100;
 }
 
 /**
  * Calculates Finished Goods current level.
- * Formula: op_stock + stock_adjustment + purchase_material_received + lift_material +
- *          in_transit + production + sales_return - purchase_return - sales - consumption
+ * Formula: op_stock + stock_adjustment + purchase_material_received + production +
+ *          sales_return - purchase_return - sales - consumption
  */
 function finishedGoodCurrentLevel(
   opStock = 0,
@@ -120,13 +121,36 @@ function tradingMaterialCurrentLevel(
   );
 }
 
+/**
+ * Calculates Raw Material actual level.
+ * Formula: op_stock + stock_adjustment + (purchase_receipts - purchase_return)
+ *          - production_consumption - raw_material_sales
+ */
+function rawMaterialActualLevel(
+  opStock = 0,
+  stockAdjustment = 0,
+  purchaseReceived = 0,
+  consumption = 0,
+  purchaseReturn = 0,
+  sales = 0
+) {
+  const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+  return (
+    num(opStock) +
+    num(stockAdjustment) +
+    num(purchaseReceived) -
+    num(purchaseReturn) -
+    num(consumption) -
+    num(sales)
+  );
+}
+
 module.exports = {
   dailyConsumption,
-  optimumStock,
-  maxStock,
-  optimumStockTotal,
-  stockTotal,
   colour,
+  stockTotal,
+  optimumStockTotal,
   finishedGoodCurrentLevel,
   tradingMaterialCurrentLevel,
+  rawMaterialActualLevel,
 };

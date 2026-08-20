@@ -2,11 +2,15 @@ const connectDB = require('../../config/db');
 const prisma = connectDB.prisma;
 const {
   normalizeFirmName,
+  normalizeItemKey,
   getFinishedGoodProduction,
   getFinishedGoodDispatch,
   getFinishedGoodPendingOrders,
   getMaterialReturns,
   getPurchaseReturns,
+  getRawMaterialReceipts,
+  getProductionConsumption,
+  getStockAdjustmentTotals,
 } = require('../shared/inventorySync.service');
 const { finishedGoodCurrentLevel } = require('../shared/inventoryFormulas');
 
@@ -28,61 +32,73 @@ const getFinishedGoods = async (req, res, next) => {
       whereClause.productName = { contains: search, mode: 'insensitive' };
     }
 
-    const [items, totalCount, liveProduction, liveDispatches, livePending, liveMatReturns, livePurchReturns] =
-      await Promise.all([
-        prisma.inventoryFinishedGoods.findMany({
-          where: whereClause,
-          orderBy: [{ firmName: 'asc' }, { sNo: 'asc' }],
-          skip,
-          take: limitNum,
-        }),
-        prisma.inventoryFinishedGoods.count({ where: whereClause }),
-        getFinishedGoodProduction(normFirm || ''),
-        getFinishedGoodDispatch(normFirm || ''),
-        getFinishedGoodPendingOrders(normFirm || ''),
-        getMaterialReturns(normFirm || ''),
-        getPurchaseReturns(normFirm || ''),
-      ]);
+    const [
+      items,
+      totalCount,
+      liveProduction,
+      liveDispatches,
+      livePending,
+      liveMatReturns,
+      livePurchReturns,
+      liveReceipts,
+      liveConsumption,
+      adjustmentTotals,
+    ] = await Promise.all([
+      prisma.inventoryFinishGoods.findMany({
+        where: whereClause,
+        orderBy: [{ firmName: 'asc' }, { productName: 'asc' }],
+        skip,
+        take: limitNum,
+      }),
+      prisma.inventoryFinishGoods.count({ where: whereClause }),
+      getFinishedGoodProduction(normFirm || ''),
+      getFinishedGoodDispatch(normFirm || ''),
+      getFinishedGoodPendingOrders(normFirm || ''),
+      getMaterialReturns(normFirm || ''),
+      getPurchaseReturns(normFirm || ''),
+      getRawMaterialReceipts(normFirm || ''),
+      getProductionConsumption(normFirm || ''),
+      getStockAdjustmentTotals('finish_good', normFirm || undefined),
+    ]);
 
     const formattedData = items.map((item) => {
-      const normKey = item.productName.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const prodQty = liveProduction[normKey]?.quantityFg || item.production || 0;
-      const salesQty = liveDispatches[normKey]?.quantity || item.sales || 0;
-      const pendingQty = livePending[normKey]?.pendingQuantity || item.salesOrderPending || 0;
-      const salesRetQty = liveMatReturns[normKey]?.quantity || item.salesReturn || 0;
-      const purchRetQty = livePurchReturns[normKey]?.quantity || item.purchaseReturn || 0;
+      const normKey = normalizeItemKey(item.productName);
+      const prodQty = liveProduction[normKey]?.quantityFg || 0;
+      const salesQty = liveDispatches[normKey]?.quantity || 0;
+      const pendingQty = livePending[normKey]?.pendingQuantity || 0;
+      const salesRetQty = liveMatReturns[normKey]?.quantity || 0;
+      const purchRetQty = livePurchReturns[normKey]?.quantity || 0;
+      const purchRecQty = liveReceipts[normKey]?.quantity || 0;
+      const consumptionQty = liveConsumption[normKey]?.quantity || 0;
+      const adjustmentQty = adjustmentTotals[normKey] || 0;
 
       const calcCurrentLevel = finishedGoodCurrentLevel(
         item.opStock,
-        item.purchaseMaterialReceived,
+        purchRecQty,
         prodQty,
-        item.stockAdjustment,
+        adjustmentQty,
         salesQty,
         salesRetQty,
-        item.consumption,
+        consumptionQty,
         purchRetQty
       );
 
       return {
         id: item.id,
-        s_no: item.sNo,
         firm_name: item.firmName,
         product_name: item.productName,
         op_stock: item.opStock,
         op_stock_date: item.opStockDate,
-        stock_adjustment: item.stockAdjustment,
+        stock_adjustment: adjustmentQty,
         sales_order_pending: pendingQty,
-        purchase_material_received: item.purchaseMaterialReceived,
-        lift_material: item.liftMaterial,
-        in_transit: item.inTransit,
+        purchase_material_received: purchRecQty,
         purchase_return: purchRetQty,
         production: prodQty,
         sales: salesQty,
         sales_return: salesRetQty,
-        consumption: item.consumption,
+        consumption: consumptionQty,
         current_level: calcCurrentLevel,
         created_at: item.createdAt,
-        updated_at: item.updatedAt,
       };
     });
 
@@ -105,7 +121,7 @@ const getFinishedGoods = async (req, res, next) => {
 // @route   POST /api/inventory/finished-goods
 const createFinishedGood = async (req, res, next) => {
   try {
-    const { firmName, productName, opStock, opStockDate, stockAdjustment, sNo } = req.body;
+    const { firmName, productName, opStock, opStockDate } = req.body;
     if (!firmName || !productName) {
       res.status(400);
       throw new Error('firmName and productName are required');
@@ -113,15 +129,12 @@ const createFinishedGood = async (req, res, next) => {
 
     const normFirm = normalizeFirmName(firmName);
 
-    const item = await prisma.inventoryFinishedGoods.create({
+    const item = await prisma.inventoryFinishGoods.create({
       data: {
         firmName: normFirm,
         productName: productName.trim(),
         opStock: parseFloat(opStock) || 0,
         opStockDate: opStockDate ? new Date(opStockDate) : null,
-        stockAdjustment: parseFloat(stockAdjustment) || 0,
-        currentLevel: parseFloat(opStock) || 0,
-        sNo: sNo ? parseInt(sNo, 10) : null,
       },
     });
 
@@ -136,9 +149,9 @@ const createFinishedGood = async (req, res, next) => {
 const updateFinishedGood = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { opStock, opStockDate, stockAdjustment, sNo } = req.body;
+    const { opStock, opStockDate } = req.body;
 
-    const existing = await prisma.inventoryFinishedGoods.findUnique({ where: { id } });
+    const existing = await prisma.inventoryFinishGoods.findUnique({ where: { id: parseInt(id, 10) } });
     if (!existing) {
       res.status(404);
       throw new Error('Finished good item not found');
@@ -147,11 +160,9 @@ const updateFinishedGood = async (req, res, next) => {
     const updateData = {};
     if (opStock !== undefined) updateData.opStock = parseFloat(opStock);
     if (opStockDate !== undefined) updateData.opStockDate = opStockDate ? new Date(opStockDate) : null;
-    if (stockAdjustment !== undefined) updateData.stockAdjustment = parseFloat(stockAdjustment);
-    if (sNo !== undefined) updateData.sNo = parseInt(sNo, 10);
 
-    const updated = await prisma.inventoryFinishedGoods.update({
-      where: { id },
+    const updated = await prisma.inventoryFinishGoods.update({
+      where: { id: parseInt(id, 10) },
       data: updateData,
     });
 
@@ -166,7 +177,7 @@ const updateFinishedGood = async (req, res, next) => {
 const deleteFinishedGood = async (req, res, next) => {
   try {
     const { id } = req.params;
-    await prisma.inventoryFinishedGoods.delete({ where: { id } });
+    await prisma.inventoryFinishGoods.delete({ where: { id: parseInt(id, 10) } });
     res.json({ success: true, message: 'Item deleted successfully' });
   } catch (error) {
     next(error);

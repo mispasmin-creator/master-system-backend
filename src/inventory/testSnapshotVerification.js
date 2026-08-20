@@ -11,7 +11,7 @@ async function testSnapshotVerification() {
 
   // 1. First populate dummy item in master models if empty to verify count equality
   const rawCount = await prisma.inventoryRawMaterial.count();
-  const fgCount = await prisma.inventoryFinishedGoods.count();
+  const fgCount = await prisma.inventoryFinishGoods.count();
 
   if (rawCount === 0) {
     console.log('Seeding temporary test Raw Material item...');
@@ -21,25 +21,23 @@ async function testSnapshotVerification() {
         itemName: 'Snapshot Test Material',
         unit: 'MT',
         opStock: 250,
-        actualLevel: 250,
       },
     });
   }
 
   if (fgCount === 0) {
     console.log('Seeding temporary test Finished Goods item...');
-    await prisma.inventoryFinishedGoods.create({
+    await prisma.inventoryFinishGoods.create({
       data: {
         firmName: 'Purab',
         productName: 'Snapshot Test Product',
         opStock: 100,
-        currentLevel: 100,
       },
     });
   }
 
   const expectedRmCount = await prisma.inventoryRawMaterial.count();
-  const expectedFgCount = await prisma.inventoryFinishedGoods.count();
+  const expectedFgCount = await prisma.inventoryFinishGoods.count();
 
   console.log(`Master RawMaterial count: ${expectedRmCount}`);
   console.log(`Master FinishedGoods count: ${expectedFgCount}`);
@@ -74,7 +72,7 @@ async function testSnapshotVerification() {
 
   // Cleanup seeded test items if created
   await prisma.inventoryRawMaterial.deleteMany({ where: { itemName: 'Snapshot Test Material' } });
-  await prisma.inventoryFinishedGoods.deleteMany({ where: { productName: 'Snapshot Test Product' } });
+  await prisma.inventoryFinishGoods.deleteMany({ where: { productName: 'Snapshot Test Product' } });
   await prisma.inventoryRawMaterialHistory.deleteMany({ where: { itemName: 'Snapshot Test Material' } });
   await prisma.inventoryFinishedGoodsHistory.deleteMany({ where: { productName: 'Snapshot Test Product' } });
 

@@ -2,18 +2,15 @@ const connectDB = require('../../config/db');
 const prisma = connectDB.prisma;
 const {
   normalizeFirmName,
+  normalizeItemKey,
   getRawMaterialReceipts,
   getRawMaterialRates,
   getProductionConsumption,
+  getFinishedGoodDispatch,
+  getPurchaseReturns,
+  getStockAdjustmentTotals,
 } = require('../shared/inventorySync.service');
-const {
-  dailyConsumption,
-  optimumStock,
-  maxStock,
-  optimumStockTotal,
-  stockTotal,
-  colour,
-} = require('../shared/inventoryFormulas');
+const { dailyConsumption, colour, stockTotal, optimumStockTotal, rawMaterialActualLevel } = require('../shared/inventoryFormulas');
 
 // @desc    Get Raw Material Inventory
 // @route   GET /api/inventory/raw-material?firm=&search=&page=&pageSize=
@@ -33,53 +30,72 @@ const getRawMaterial = async (req, res, next) => {
       whereClause.itemName = { contains: search, mode: 'insensitive' };
     }
 
-    const [items, totalCount, liveReceipts, liveRates, liveConsumptions] = await Promise.all([
-      prisma.inventoryRawMaterial.findMany({
-        where: whereClause,
-        orderBy: [{ firmName: 'asc' }, { sNo: 'asc' }],
-        skip,
-        take: limitNum,
-      }),
-      prisma.inventoryRawMaterial.count({ where: whereClause }),
-      getRawMaterialReceipts(normFirm || ''),
-      getRawMaterialRates(normFirm || ''),
-      getProductionConsumption(normFirm || ''),
-    ]);
+    const [items, totalCount, liveReceipts, liveRates, liveConsumptions, liveSales, livePurchReturns, adjustmentTotals] =
+      await Promise.all([
+        prisma.inventoryRawMaterial.findMany({
+          where: whereClause,
+          orderBy: [{ firmName: 'asc' }, { itemName: 'asc' }],
+          skip,
+          take: limitNum,
+        }),
+        prisma.inventoryRawMaterial.count({ where: whereClause }),
+        getRawMaterialReceipts(normFirm || ''),
+        getRawMaterialRates(normFirm || ''),
+        getProductionConsumption(normFirm || ''),
+        getFinishedGoodDispatch(normFirm || ''),
+        getPurchaseReturns(normFirm || ''),
+        getStockAdjustmentTotals('raw_material', normFirm || undefined),
+      ]);
 
     const formattedData = items.map((item) => {
-      const normItemKey = item.itemName.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const normItemKey = normalizeItemKey(item.itemName);
       const purchaseQty = liveReceipts[normItemKey]?.quantity || 0;
       const consumptionQty = liveConsumptions[normItemKey]?.quantity || 0;
-      const liveRate = liveRates[normItemKey] || item.productRate || 0;
+      const salesQty = liveSales[normItemKey]?.quantity || 0;
+      const purchReturnQty = livePurchReturns[normItemKey]?.quantity || 0;
+      const liveRate = liveRates[normItemKey] || 0;
+      const adjustmentQty = adjustmentTotals[normItemKey] || 0;
 
-      const dailyCon = dailyConsumption(item.annualConsumption);
-      const optStock = optimumStock(item.annualConsumption, item.leadTimeDays, item.safetyFactor);
-      const maxStk = maxStock(item.annualConsumption, item.leadTimeDays, item.safetyFactor);
-      const optStockTotal = optimumStockTotal(item.annualConsumption, item.leadTimeDays, item.safetyFactor, liveRate);
-      const stkTotal = stockTotal(item.actualLevel, liveRate);
-      const colFlag = colour(item.actualLevel, item.annualConsumption, item.leadTimeDays, item.safetyFactor);
+      const actualLevel = rawMaterialActualLevel(
+        item.opStock,
+        adjustmentQty,
+        purchaseQty,
+        consumptionQty,
+        purchReturnQty,
+        salesQty
+      );
+
+      const dailyCon = dailyConsumption(item.annuCon);
+      const optStockTotal = optimumStockTotal(item.optimumQty, liveRate);
+      const stkTotal = stockTotal(actualLevel, liveRate);
+      const colFlag = colour(actualLevel, item.maxQty, item.optimumQty);
 
       return {
         id: item.id,
-        s_no: item.sNo,
         firm_name: item.firmName,
         item_name: item.itemName,
         unit: item.unit || '',
         op_stock: item.opStock,
         op_stock_date: item.opStockDate,
-        actual_level: item.actualLevel,
+        stock_adjustment: adjustmentQty,
+        actual_level: actualLevel,
         product_rate: liveRate,
-        annual_consumption: item.annualConsumption,
+        annual_consumption: item.annuCon,
+        annu_con: item.annuCon,
         safety_factor: item.safetyFactor,
         lead_time_days: item.leadTimeDays,
         daily_consumption: dailyCon,
-        optimum_stock: optStock,
-        max_stock: maxStk,
+        optimum_stock: item.optimumQty,
+        optimum_qty: item.optimumQty,
+        max_stock: item.maxQty,
+        max_qty: item.maxQty,
         optimum_stock_total: optStockTotal,
         stock_total: stkTotal,
         colour: colFlag,
         purchase_system: purchaseQty,
+        purchase_return: purchReturnQty,
         production_consumption: consumptionQty,
+        raw_material_sales: salesQty,
         created_at: item.createdAt,
         updated_at: item.updatedAt,
       };
@@ -110,11 +126,12 @@ const createRawMaterial = async (req, res, next) => {
       unit,
       opStock,
       opStockDate,
-      productRate,
       annualConsumption,
+      annuCon,
       safetyFactor,
       leadTimeDays,
-      sNo,
+      optimumQty,
+      maxQty,
     } = req.body;
 
     if (!firmName || !itemName) {
@@ -128,15 +145,14 @@ const createRawMaterial = async (req, res, next) => {
       data: {
         firmName: normFirm,
         itemName: itemName.trim(),
-        unit: unit || '',
+        unit: unit || 'MT',
         opStock: parseFloat(opStock) || 0,
         opStockDate: opStockDate ? new Date(opStockDate) : null,
-        actualLevel: parseFloat(opStock) || 0,
-        productRate: parseFloat(productRate) || 0,
-        annualConsumption: parseFloat(annualConsumption) || 0,
+        annuCon: parseFloat(annuCon ?? annualConsumption) || 0,
         safetyFactor: parseFloat(safetyFactor) || 1,
         leadTimeDays: parseFloat(leadTimeDays) || 0,
-        sNo: sNo ? parseInt(sNo, 10) : null,
+        optimumQty: parseFloat(optimumQty) || 0,
+        maxQty: parseFloat(maxQty) || 0,
       },
     });
 
@@ -155,33 +171,32 @@ const updateRawMaterial = async (req, res, next) => {
       unit,
       opStock,
       opStockDate,
-      actualLevel,
-      productRate,
       annualConsumption,
+      annuCon,
       safetyFactor,
       leadTimeDays,
-      sNo,
+      optimumQty,
+      maxQty,
     } = req.body;
 
-    const existing = await prisma.inventoryRawMaterial.findUnique({ where: { id } });
+    const existing = await prisma.inventoryRawMaterial.findUnique({ where: { id: parseInt(id, 10) } });
     if (!existing) {
       res.status(404);
       throw new Error('Raw material item not found');
     }
 
-    const updateData = {};
+    const updateData = { updatedAt: new Date() };
     if (unit !== undefined) updateData.unit = unit;
     if (opStock !== undefined) updateData.opStock = parseFloat(opStock);
     if (opStockDate !== undefined) updateData.opStockDate = opStockDate ? new Date(opStockDate) : null;
-    if (actualLevel !== undefined) updateData.actualLevel = parseFloat(actualLevel);
-    if (productRate !== undefined) updateData.productRate = parseFloat(productRate);
-    if (annualConsumption !== undefined) updateData.annualConsumption = parseFloat(annualConsumption);
+    if (annuCon !== undefined || annualConsumption !== undefined) updateData.annuCon = parseFloat(annuCon ?? annualConsumption);
     if (safetyFactor !== undefined) updateData.safetyFactor = parseFloat(safetyFactor);
     if (leadTimeDays !== undefined) updateData.leadTimeDays = parseFloat(leadTimeDays);
-    if (sNo !== undefined) updateData.sNo = parseInt(sNo, 10);
+    if (optimumQty !== undefined) updateData.optimumQty = parseFloat(optimumQty);
+    if (maxQty !== undefined) updateData.maxQty = parseFloat(maxQty);
 
     const updated = await prisma.inventoryRawMaterial.update({
-      where: { id },
+      where: { id: parseInt(id, 10) },
       data: updateData,
     });
 
@@ -196,7 +211,7 @@ const updateRawMaterial = async (req, res, next) => {
 const deleteRawMaterial = async (req, res, next) => {
   try {
     const { id } = req.params;
-    await prisma.inventoryRawMaterial.delete({ where: { id } });
+    await prisma.inventoryRawMaterial.delete({ where: { id: parseInt(id, 10) } });
     res.json({ success: true, message: 'Item deleted successfully' });
   } catch (error) {
     next(error);

@@ -45,8 +45,27 @@ const getHistory = async (req, res, next) => {
     res.json({
       success: true,
       data: {
-        rawMaterial: rawMaterialHistory,
-        finishedGoods: finishedGoodsHistory,
+        rawMaterial: rawMaterialHistory.map((r) => ({
+          id: r.id,
+          snapshot_date: r.snapshotDate,
+          firm_name: r.firmName,
+          item_name: r.itemName,
+          unit: r.unit,
+          actual_level: r.actualLevel,
+          optimum_qty: r.optimumQty,
+          max_qty: r.maxQty,
+          product_rate: r.productRate,
+          captured_at: r.capturedAt,
+        })),
+        finishedGoods: finishedGoodsHistory.map((r) => ({
+          id: r.id,
+          snapshot_date: r.snapshotDate,
+          firm_name: r.firmName,
+          product_name: r.productName,
+          current_level: r.currentLevel,
+          sales_order_pending: r.salesOrderPending,
+          captured_at: r.capturedAt,
+        })),
       },
     });
   } catch (error) {

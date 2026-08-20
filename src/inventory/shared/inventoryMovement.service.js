@@ -2,153 +2,69 @@ const connectDB = require('../../config/db');
 const prisma = connectDB.prisma;
 const { normalizeFirmName } = require('./inventorySync.service');
 
+// Old "category" values, still used by every caller of applyMovement(), map onto
+// the real stock_adjustment.material_type enum.
+const CATEGORY_TO_MATERIAL_TYPE = {
+  RawMaterial: 'raw_material',
+  FinishedGoods: 'finish_good',
+  TradingMaterial: 'trading_material',
+};
+
+// Movement types that increase stock vs decrease it — mirrors the real
+// stock_adjustment.status enum ('Factory +' / 'Factory -').
+const INCREASING_MOVEMENTS = new Set(['RECEIPT', 'PRODUCTION', 'ADJUSTMENT_ADD', 'SALES_RETURN']);
+const DECREASING_MOVEMENTS = new Set(['CONSUMPTION', 'SALES', 'ADJUSTMENT_REDUCE', 'PURCHASE_RETURN', 'RETURN']);
+
 /**
- * Recalculates and updates actualLevel / currentLevel for a item.
+ * Records a stock movement coming from another module (Purchase/Order/Production)
+ * or a manual stock adjustment, by inserting a StockAdjustment row — the real
+ * schema has no separate movement-log table, so the source reference (which used
+ * to dedup against a dedicated log table) is encoded into StockAdjustment.remark
+ * instead, and checked before inserting so retries of the same event don't
+ * double-count stock.
  */
 async function applyMovement({
   category, // "RawMaterial" | "FinishedGoods" | "TradingMaterial"
   firmName,
   itemName,
-  movementType, // RECEIPT | CONSUMPTION | ADJUSTMENT | RETURN | SALES | PRODUCTION
+  movementType, // RECEIPT | CONSUMPTION | ADJUSTMENT_ADD | ADJUSTMENT_REDUCE | RETURN | SALES | SALES_RETURN | PURCHASE_RETURN | PRODUCTION
   quantity,
   sourceModule, // "purchase" | "production" | "order" | "manual"
   sourceTable,
   sourceId,
-  rawMaterialId,
+  skipStockAdjustment = false, // true when the caller already inserted the StockAdjustment row itself
 }) {
-  const normFirm = normalizeFirmName(firmName);
   const qty = Number(quantity) || 0;
+  if (qty <= 0 || skipStockAdjustment) return;
 
-  if (category === 'RawMaterial') {
-    // 1. Record Movement Log
-    if (sourceModule && sourceTable && sourceId) {
-      await prisma.inventoryMovement.upsert({
-        where: {
-          sourceModule_sourceTable_sourceId_movementType: {
-            sourceModule,
-            sourceTable,
-            sourceId: String(sourceId),
-            movementType,
-          },
-        },
-        update: {
-          quantity: qty,
-          firmName: normFirm,
-          itemName,
-        },
-        create: {
-          rawMaterialId,
-          firmName: normFirm,
-          itemName,
-          movementType,
-          quantity: qty,
-          sourceModule,
-          sourceTable,
-          sourceId: String(sourceId),
-        },
-      });
-    }
+  const materialType = CATEGORY_TO_MATERIAL_TYPE[category];
+  if (!materialType) return;
 
-    // 2. Adjust Raw Material actualLevel
-    const rm = await prisma.inventoryRawMaterial.findUnique({
-      where: { firmName_itemName: { firmName: normFirm, itemName } },
-    });
+  let status = null;
+  if (INCREASING_MOVEMENTS.has(movementType)) status = 'Factory +';
+  else if (DECREASING_MOVEMENTS.has(movementType)) status = 'Factory -';
+  if (!status) return;
 
-    if (rm) {
-      let delta = 0;
-      if (['RECEIPT', 'ADJUSTMENT_ADD'].includes(movementType)) {
-        delta = qty;
-      } else if (['CONSUMPTION', 'RETURN', 'ADJUSTMENT_REDUCE'].includes(movementType)) {
-        delta = -qty;
-      }
-      const newLevel = Math.max(0, (rm.actualLevel || 0) + delta);
-      await prisma.inventoryRawMaterial.update({
-        where: { id: rm.id },
-        data: { actualLevel: newLevel },
-      });
-    }
-  } else if (category === 'FinishedGoods') {
-    const fg = await prisma.inventoryFinishedGoods.findUnique({
-      where: { firmName_productName: { firmName: normFirm, productName: itemName } },
-    });
+  const normFirm = normalizeFirmName(firmName);
+  const sourceRef =
+    sourceModule && sourceTable && sourceId ? `${sourceModule}:${sourceTable}#${sourceId} (${movementType})` : null;
 
-    if (fg) {
-      let updateData = {};
-      if (movementType === 'PRODUCTION') {
-        updateData.production = (fg.production || 0) + qty;
-      } else if (movementType === 'SALES') {
-        updateData.sales = (fg.sales || 0) + qty;
-      } else if (movementType === 'SALES_RETURN') {
-        updateData.salesReturn = (fg.salesReturn || 0) + qty;
-      } else if (movementType === 'PURCHASE_RETURN') {
-        updateData.purchaseReturn = (fg.purchaseReturn || 0) + qty;
-      } else if (movementType === 'CONSUMPTION') {
-        updateData.consumption = (fg.consumption || 0) + qty;
-      } else if (movementType === 'ADJUSTMENT_ADD') {
-        updateData.stockAdjustment = (fg.stockAdjustment || 0) + qty;
-      } else if (movementType === 'ADJUSTMENT_REDUCE') {
-        updateData.stockAdjustment = (fg.stockAdjustment || 0) - qty;
-      }
-
-      // Recompute current level
-      const updated = { ...fg, ...updateData };
-      const currentLevel =
-        (updated.opStock || 0) +
-        (updated.stockAdjustment || 0) +
-        (updated.purchaseMaterialReceived || 0) +
-        (updated.liftMaterial || 0) +
-        (updated.inTransit || 0) +
-        (updated.production || 0) +
-        (updated.salesReturn || 0) -
-        (updated.purchaseReturn || 0) -
-        (updated.sales || 0) -
-        (updated.consumption || 0);
-
-      updateData.currentLevel = currentLevel;
-
-      await prisma.inventoryFinishedGoods.update({
-        where: { id: fg.id },
-        data: updateData,
-      });
-    }
-  } else if (category === 'TradingMaterial') {
-    const tm = await prisma.inventoryTradingMaterial.findUnique({
-      where: { firmName_productName: { firmName: normFirm, productName: itemName } },
-    });
-
-    if (tm) {
-      let updateData = {};
-      if (movementType === 'RECEIPT') {
-        updateData.purchaseMaterialReceived = (tm.purchaseMaterialReceived || 0) + qty;
-      } else if (movementType === 'PURCHASE_RETURN') {
-        updateData.purchaseReturn = (tm.purchaseReturn || 0) + qty;
-      } else if (movementType === 'SALES') {
-        updateData.sales = (tm.sales || 0) + qty;
-      } else if (movementType === 'SALES_RETURN') {
-        updateData.salesReturn = (tm.salesReturn || 0) + qty;
-      } else if (movementType === 'ADJUSTMENT_ADD') {
-        updateData.stockAdjustment = (tm.stockAdjustment || 0) + qty;
-      } else if (movementType === 'ADJUSTMENT_REDUCE') {
-        updateData.stockAdjustment = (tm.stockAdjustment || 0) - qty;
-      }
-
-      const updated = { ...tm, ...updateData };
-      const currentLevel =
-        (updated.opStock || 0) +
-        (updated.stockAdjustment || 0) +
-        (updated.purchaseMaterialReceived || 0) +
-        (updated.salesReturn || 0) -
-        (updated.purchaseReturn || 0) -
-        (updated.sales || 0);
-
-      updateData.currentLevel = currentLevel;
-
-      await prisma.inventoryTradingMaterial.update({
-        where: { id: tm.id },
-        data: updateData,
-      });
-    }
+  if (sourceRef) {
+    const existing = await prisma.inventoryStockAdjustment.findFirst({ where: { remark: sourceRef } });
+    if (existing) return;
   }
+
+  await prisma.inventoryStockAdjustment.create({
+    data: {
+      entryDate: new Date(),
+      firmName: normFirm,
+      itemName,
+      qty,
+      status,
+      materialType,
+      remark: sourceRef,
+    },
+  });
 }
 
 module.exports = {

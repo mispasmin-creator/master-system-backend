@@ -2496,160 +2496,114 @@ model FreightPaymentRelease {
 // ─────────────────────────────────────────────────────────────────
 // Inventory module. Firms are literals 'Purab' | 'Pmmpl' | 'Rkl'
 // ('Madhya' from the old app folds into 'Pmmpl' — normalize on write).
-// No DB-level generated columns or triggers here on purpose — derived
-// values (optimum stock, max stock, colour flag, current level) are
-// computed in src/inventory/shared/inventoryFormulas.js, matching how
-// the rest of this codebase keeps logic in controllers, not SQL.
+//
+// These 6 models are the ENTIRE module, and match the real Supabase
+// schema column-for-column, table-for-table — no extra bookkeeping
+// tables beyond what's actually in Supabase (confirmed against the live
+// `information_schema` dump, not the stale reference-app SQL migration
+// files, which disagree with it). The master tables are thin — they
+// store only op_stock as a baseline; there are NO running-total columns
+// (no stock_adjustment/sales/production/current_level on the master rows
+// themselves). "Current level" is derived (op_stock + the matching rows
+// in StockAdjustment) in the controllers, not stored — see
+// src/inventory/shared/inventoryFormulas.js. Purchase/Order/Production's
+// cross-module sync hooks (src/inventory/shared/inventoryMovement.service.js's
+// applyMovement()) write directly into StockAdjustment too, with a
+// remark-encoded source reference standing in for what used to be a
+// separate movement-log table.
+//
 // Page-access keys for this module are prefixed "Inventory_" in the
 // existing Login.page_access column (e.g. Inventory_RawMaterial_Purab).
+//
+// Table names are prefixed "inventory_" throughout for easy tracking
+// within this merged system's shared database (distinct from the plain
+// Supabase names — see conversation history for the real column shapes
+// these were checked against).
 // ─────────────────────────────────────────────────────────────────
 
 model InventoryRawMaterial {
-  id                String              @id @default(uuid())
-  firmName          String              @map("firm_name")
-  itemName          String              @map("item_name")
-  unit              String?             @default("")
-  sNo               Int?                @map("s_no")
-  opStock           Float               @default(0) @map("op_stock")
-  opStockDate       DateTime?           @map("op_stock_date")
-  actualLevel       Float               @default(0) @map("actual_level")
-  productRate       Float               @default(0) @map("product_rate")
-  annualConsumption Float               @default(0) @map("annual_consumption")
-  safetyFactor      Float               @default(1) @map("safety_factor")
-  leadTimeDays      Float               @default(0) @map("lead_time_days")
-  createdAt         DateTime            @default(now()) @map("created_at")
-  updatedAt         DateTime?           @updatedAt @map("updated_at")
-  movements         InventoryMovement[]
+  id           Int       @id @default(autoincrement())
+  firmName     String    @map("firm_name")
+  itemName     String    @map("item_name")
+  unit         String?   @default("MT")
+  maxQty       Float?    @default(0) @map("max_qty")
+  optimumQty   Float?    @default(0) @map("optimum_qty")
+  safetyFactor Float?    @default(1) @map("safety_factor")
+  leadTimeDays Float?    @default(0) @map("lead_time_days")
+  createdAt    DateTime? @default(now()) @map("created_at")
+  updatedAt    DateTime? @default(now()) @map("updated_at")
+  opStock      Float     @default(0) @map("op_stock")
+  opStockDate  DateTime? @map("op_stock_date")
+  annuCon      Float     @default(0) @map("annu_con")
 
-  @@unique([firmName, itemName])
   @@map("inventory_raw_material")
 }
 
-model InventoryMovement {
-  id            String                @id @default(uuid())
-  rawMaterialId String?               @map("raw_material_id")
-  firmName      String                @map("firm_name")
-  itemName      String                @map("item_name")
-  movementType  String                @map("movement_type") // RECEIPT | CONSUMPTION | ADJUSTMENT | RETURN
-  quantity      Float
-  sourceModule  String                @map("source_module") // "purchase" | "production" | "order" | "manual"
-  sourceTable   String                @map("source_table") // e.g. "PurchaseReceipt"
-  sourceId      String                @map("source_id")
-  createdAt     DateTime              @default(now()) @map("created_at")
-  rawMaterial   InventoryRawMaterial? @relation(fields: [rawMaterialId], references: [id])
+model InventoryFinishGoods {
+  id          Int       @id @default(autoincrement())
+  firmName    String    @map("firm_name")
+  productName String    @map("product_name")
+  opStock     Float?    @map("op_stock")
+  createdAt   DateTime? @default(now()) @map("created_at")
+  opStockDate DateTime? @map("op_stock_date")
 
-  @@unique([sourceModule, sourceTable, sourceId, movementType])
-  @@map("inventory_movement")
-}
-
-model InventoryFinishedGoods {
-  id                       String    @id @default(uuid())
-  firmName                 String    @map("firm_name")
-  productName              String    @map("product_name")
-  sNo                      Int?      @map("s_no")
-  opStock                  Float     @default(0) @map("op_stock")
-  opStockDate              DateTime? @map("op_stock_date")
-  stockAdjustment          Float     @default(0) @map("stock_adjustment")
-  salesOrderPending        Float     @default(0) @map("sales_order_pending")
-  purchaseMaterialReceived Float     @default(0) @map("purchase_material_received")
-  liftMaterial             Float     @default(0) @map("lift_material")
-  inTransit                Float     @default(0) @map("in_transit")
-  purchaseReturn           Float     @default(0) @map("purchase_return")
-  production               Float     @default(0) @map("production")
-  sales                    Float     @default(0) @map("sales")
-  salesReturn              Float     @default(0) @map("sales_return")
-  consumption              Float     @default(0) @map("consumption")
-  currentLevel             Float     @default(0) @map("current_level")
-  createdAt                DateTime  @default(now()) @map("created_at")
-  updatedAt                DateTime? @updatedAt @map("updated_at")
-
-  @@unique([firmName, productName])
-  @@map("inventory_finished_goods")
+  @@map("inventory_finish_goods")
 }
 
 model InventoryTradingMaterial {
-  id                       String    @id @default(uuid())
-  firmName                 String    @map("firm_name")
-  productName              String    @map("product_name")
-  sNo                      Int?      @map("s_no")
-  unit                     String?   @default("")
-  opStock                  Float     @default(0) @map("op_stock")
-  opStockDate              DateTime? @map("op_stock_date")
-  stockAdjustment          Float     @default(0) @map("stock_adjustment")
-  purchaseMaterialReceived Float     @default(0) @map("purchase_material_received")
-  purchaseReturn           Float     @default(0) @map("purchase_return")
-  sales                    Float     @default(0) @map("sales")
-  salesReturn              Float     @default(0) @map("sales_return")
-  currentLevel             Float     @default(0) @map("current_level")
-  createdAt                DateTime  @default(now()) @map("created_at")
-  updatedAt                DateTime? @updatedAt @map("updated_at")
+  id          Int       @id @default(autoincrement())
+  firmName    String    @map("firm_name")
+  productName String    @map("product_name")
+  opStock     Float     @default(0) @map("op_stock")
+  opStockDate DateTime? @map("op_stock_date")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @default(now()) @map("updated_at")
 
-  @@unique([firmName, productName])
-  @@map("inventory_trading_material")
+  @@map("inventory_trading_master")
 }
 
 model InventoryStockAdjustment {
-  id        String   @id @default(uuid())
-  date      DateTime
-  firmName  String   @map("firm_name")
-  category  String // "RawMaterial" | "FinishedGoods" | "TradingMaterial"
-  itemName  String   @map("item_name")
-  qty       Float
-  direction String // "Factory +" | "Factory -" (kept identical to old status field)
-  remark    String?
-  createdBy String?  @map("created_by")
-  createdAt DateTime @default(now()) @map("created_at")
+  id           Int      @id @default(autoincrement())
+  entryDate    DateTime @map("entry_date")
+  itemName     String   @map("item_name")
+  qty          Float?
+  remark       String?
+  status       String? // "Factory +" | "Factory -"
+  createdAt    DateTime @default(now()) @map("created_at")
+  firmName     String?  @map("firm_name")
+  materialType String   @default("raw_material") @map("material_type") // "raw_material" | "finish_good" | "trading_material"
+  rate         Float?
 
   @@map("inventory_stock_adjustment")
 }
 
-model InventoryOpStockLog {
-  id          String   @id @default(uuid())
-  firmName    String   @map("firm_name")
-  category    String // "RawMaterial" | "FinishedGoods"
-  itemName    String   @map("item_name")
-  opStock     Float    @map("op_stock")
-  opStockDate DateTime @map("op_stock_date")
-  changedBy   String?  @map("changed_by")
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  @@map("inventory_op_stock_log")
-}
-
 model InventoryRawMaterialHistory {
-  id           String   @id @default(uuid())
+  id           Int      @id @default(autoincrement())
   snapshotDate DateTime @map("snapshot_date")
   firmName     String   @map("firm_name")
   itemName     String   @map("item_name")
-  unit         String?
+  unit         String?  @default("")
   actualLevel  Float?   @map("actual_level")
   capturedAt   DateTime @default(now()) @map("captured_at")
+  optimumQty   Float?   @map("optimum_qty")
+  maxQty       Float?   @map("max_qty")
+  productRate  Float?   @map("product_rate")
 
   @@unique([snapshotDate, firmName, itemName])
   @@map("inventory_raw_material_history")
 }
 
 model InventoryFinishedGoodsHistory {
-  id           String   @id @default(uuid())
-  snapshotDate DateTime @map("snapshot_date")
-  firmName     String   @map("firm_name")
-  productName  String   @map("product_name")
-  currentLevel Float?   @map("current_level")
-  capturedAt   DateTime @default(now()) @map("captured_at")
+  id                Int      @id @default(autoincrement())
+  snapshotDate      DateTime @map("snapshot_date")
+  firmName          String   @map("firm_name")
+  productName       String   @map("product_name")
+  currentLevel      Float?   @map("current_level")
+  capturedAt        DateTime @default(now()) @map("captured_at")
+  salesOrderPending Float    @default(0) @map("sales_order_pending")
 
   @@unique([snapshotDate, firmName, productName])
   @@map("inventory_finished_goods_history")
-}
-
-model InventoryActivityLog {
-  id        String   @id @default(uuid())
-  userRole  String?  @map("user_role")
-  userName  String?  @map("user_name")
-  action    String
-  details   Json?
-  createdAt DateTime @default(now()) @map("created_at")
-
-  @@map("inventory_activity_log")
 }
 
 // ─────────────────────────────────────────────────────────────────

@@ -1,15 +1,17 @@
 const connectDB = require('../../config/db');
 const prisma = connectDB.prisma;
 const {
+  normalizeItemKey,
   getRawMaterialReceipts,
+  getRawMaterialRates,
   getProductionConsumption,
   getFinishedGoodProduction,
   getFinishedGoodDispatch,
-  getFinishedGoodPendingOrders,
   getMaterialReturns,
   getPurchaseReturns,
+  getStockAdjustmentTotals,
 } = require('./inventorySync.service');
-const { finishedGoodCurrentLevel } = require('./inventoryFormulas');
+const { finishedGoodCurrentLevel, rawMaterialActualLevel } = require('./inventoryFormulas');
 
 /**
  * Captures a daily stock snapshot for a specific IST date.
@@ -26,21 +28,35 @@ async function captureSnapshot(targetDate = new Date()) {
   console.log(`[DailySnapshot] Starting stock snapshot for IST day: ${dateStr}`);
 
   // 1. Raw Materials Snapshot
-  const [rawMaterials, liveReceipts, liveConsumptions] = await Promise.all([
-    prisma.inventoryRawMaterial.findMany(),
-    getRawMaterialReceipts(''),
-    getProductionConsumption(''),
-  ]);
+  const [rawMaterials, liveReceipts, liveRates, liveConsumptions, liveSales, livePurchReturnsRm, rmAdjustmentTotals] =
+    await Promise.all([
+      prisma.inventoryRawMaterial.findMany(),
+      getRawMaterialReceipts(''),
+      getRawMaterialRates(''),
+      getProductionConsumption(''),
+      getFinishedGoodDispatch(''),
+      getPurchaseReturns(''),
+      getStockAdjustmentTotals('raw_material'),
+    ]);
 
   let rmSnapshotCount = 0;
   for (const item of rawMaterials) {
-    const normKey = item.itemName.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const normKey = normalizeItemKey(item.itemName);
     const purchaseQty = liveReceipts[normKey]?.quantity || 0;
     const consumptionQty = liveConsumptions[normKey]?.quantity || 0;
+    const salesQty = liveSales[normKey]?.quantity || 0;
+    const purchReturnQty = livePurchReturnsRm[normKey]?.quantity || 0;
+    const adjustmentQty = rmAdjustmentTotals[normKey] || 0;
+    const liveRate = liveRates[normKey] || 0;
 
-    // Calculate actual level: opStock + receipts - consumption
-    const calculatedLevel = (item.opStock || 0) + purchaseQty - consumptionQty;
-    const finalLevel = item.actualLevel !== undefined ? item.actualLevel : Math.max(0, calculatedLevel);
+    const actualLevel = rawMaterialActualLevel(
+      item.opStock,
+      adjustmentQty,
+      purchaseQty,
+      consumptionQty,
+      purchReturnQty,
+      salesQty
+    );
 
     await prisma.inventoryRawMaterialHistory.upsert({
       where: {
@@ -52,7 +68,10 @@ async function captureSnapshot(targetDate = new Date()) {
       },
       update: {
         unit: item.unit || '',
-        actualLevel: finalLevel,
+        actualLevel,
+        optimumQty: item.optimumQty,
+        maxQty: item.maxQty,
+        productRate: liveRate,
         capturedAt: new Date(),
       },
       create: {
@@ -60,43 +79,57 @@ async function captureSnapshot(targetDate = new Date()) {
         firmName: item.firmName,
         itemName: item.itemName,
         unit: item.unit || '',
-        actualLevel: finalLevel,
+        actualLevel,
+        optimumQty: item.optimumQty,
+        maxQty: item.maxQty,
+        productRate: liveRate,
       },
     });
     rmSnapshotCount++;
   }
 
   // 2. Finished Goods Snapshot
-  const [finishedGoods, liveProduction, liveDispatches, livePending, liveMatReturns, livePurchReturns] =
-    await Promise.all([
-      prisma.inventoryFinishedGoods.findMany(),
-      getFinishedGoodProduction(''),
-      getFinishedGoodDispatch(''),
-      getFinishedGoodPendingOrders(''),
-      getMaterialReturns(''),
-      getPurchaseReturns(''),
-    ]);
+  const [
+    finishedGoods,
+    liveProduction,
+    liveDispatches,
+    liveMatReturns,
+    livePurchReturns,
+    liveReceiptsFg,
+    liveConsumptionFg,
+    fgAdjustmentTotals,
+  ] = await Promise.all([
+    prisma.inventoryFinishGoods.findMany(),
+    getFinishedGoodProduction(''),
+    getFinishedGoodDispatch(''),
+    getMaterialReturns(''),
+    getPurchaseReturns(''),
+    getRawMaterialReceipts(''),
+    getProductionConsumption(''),
+    getStockAdjustmentTotals('finish_good'),
+  ]);
 
   let fgSnapshotCount = 0;
   for (const fg of finishedGoods) {
-    const normKey = fg.productName.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const prodQty = liveProduction[normKey]?.quantityFg || fg.production || 0;
-    const salesQty = liveDispatches[normKey]?.quantity || fg.sales || 0;
-    const salesRetQty = liveMatReturns[normKey]?.quantity || fg.salesReturn || 0;
-    const purchRetQty = livePurchReturns[normKey]?.quantity || fg.purchaseReturn || 0;
+    const normKey = normalizeItemKey(fg.productName);
+    const prodQty = liveProduction[normKey]?.quantityFg || 0;
+    const salesQty = liveDispatches[normKey]?.quantity || 0;
+    const salesRetQty = liveMatReturns[normKey]?.quantity || 0;
+    const purchRetQty = livePurchReturns[normKey]?.quantity || 0;
+    const purchRecQty = liveReceiptsFg[normKey]?.quantity || 0;
+    const consumptionQty = liveConsumptionFg[normKey]?.quantity || 0;
+    const adjustmentQty = fgAdjustmentTotals[normKey] || 0;
 
     const calcLevel = finishedGoodCurrentLevel(
       fg.opStock,
-      fg.purchaseMaterialReceived,
+      purchRecQty,
       prodQty,
-      fg.stockAdjustment,
+      adjustmentQty,
       salesQty,
       salesRetQty,
-      fg.consumption,
+      consumptionQty,
       purchRetQty
     );
-
-    const finalLevel = fg.currentLevel !== undefined ? fg.currentLevel : calcLevel;
 
     await prisma.inventoryFinishedGoodsHistory.upsert({
       where: {
@@ -107,14 +140,14 @@ async function captureSnapshot(targetDate = new Date()) {
         },
       },
       update: {
-        currentLevel: finalLevel,
+        currentLevel: calcLevel,
         capturedAt: new Date(),
       },
       create: {
         snapshotDate: snapshotDateObj,
         firmName: fg.firmName,
         productName: fg.productName,
-        currentLevel: finalLevel,
+        currentLevel: calcLevel,
       },
     });
     fgSnapshotCount++;

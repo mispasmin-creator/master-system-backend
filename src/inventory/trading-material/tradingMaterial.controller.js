@@ -2,10 +2,12 @@ const connectDB = require('../../config/db');
 const prisma = connectDB.prisma;
 const {
   normalizeFirmName,
+  normalizeItemKey,
   getRawMaterialReceipts,
   getFinishedGoodDispatch,
   getMaterialReturns,
   getPurchaseReturns,
+  getStockAdjustmentTotals,
 } = require('../shared/inventorySync.service');
 const { tradingMaterialCurrentLevel } = require('../shared/inventoryFormulas');
 
@@ -27,11 +29,11 @@ const getTradingMaterial = async (req, res, next) => {
       whereClause.productName = { contains: search, mode: 'insensitive' };
     }
 
-    const [items, totalCount, liveReceipts, liveDispatches, liveMatReturns, livePurchReturns] =
+    const [items, totalCount, liveReceipts, liveDispatches, liveMatReturns, livePurchReturns, adjustmentTotals] =
       await Promise.all([
         prisma.inventoryTradingMaterial.findMany({
           where: whereClause,
-          orderBy: [{ firmName: 'asc' }, { sNo: 'asc' }],
+          orderBy: [{ firmName: 'asc' }, { productName: 'asc' }],
           skip,
           take: limitNum,
         }),
@@ -40,18 +42,20 @@ const getTradingMaterial = async (req, res, next) => {
         getFinishedGoodDispatch(normFirm || ''),
         getMaterialReturns(normFirm || ''),
         getPurchaseReturns(normFirm || ''),
+        getStockAdjustmentTotals('trading_material', normFirm || undefined),
       ]);
 
     const formattedData = items.map((item) => {
-      const normKey = item.productName.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const purchRec = liveReceipts[normKey]?.quantity || item.purchaseMaterialReceived || 0;
-      const salesQty = liveDispatches[normKey]?.quantity || item.sales || 0;
-      const salesRetQty = liveMatReturns[normKey]?.quantity || item.salesReturn || 0;
-      const purchRetQty = livePurchReturns[normKey]?.quantity || item.purchaseReturn || 0;
+      const normKey = normalizeItemKey(item.productName);
+      const purchRec = liveReceipts[normKey]?.quantity || 0;
+      const salesQty = liveDispatches[normKey]?.quantity || 0;
+      const salesRetQty = liveMatReturns[normKey]?.quantity || 0;
+      const purchRetQty = livePurchReturns[normKey]?.quantity || 0;
+      const adjustmentQty = adjustmentTotals[normKey] || 0;
 
       const calcCurrentLevel = tradingMaterialCurrentLevel(
         item.opStock,
-        item.stockAdjustment,
+        adjustmentQty,
         purchRec,
         purchRetQty,
         salesQty,
@@ -60,13 +64,11 @@ const getTradingMaterial = async (req, res, next) => {
 
       return {
         id: item.id,
-        s_no: item.sNo,
         firm_name: item.firmName,
         product_name: item.productName,
-        unit: item.unit || '',
         op_stock: item.opStock,
         op_stock_date: item.opStockDate,
-        stock_adjustment: item.stockAdjustment,
+        stock_adjustment: adjustmentQty,
         purchase_material_received: purchRec,
         purchase_return: purchRetQty,
         sales: salesQty,
@@ -96,7 +98,7 @@ const getTradingMaterial = async (req, res, next) => {
 // @route   POST /api/inventory/trading-material
 const createTradingMaterial = async (req, res, next) => {
   try {
-    const { firmName, productName, unit, opStock, opStockDate, stockAdjustment, sNo } = req.body;
+    const { firmName, productName, opStock, opStockDate } = req.body;
     if (!firmName || !productName) {
       res.status(400);
       throw new Error('firmName and productName are required');
@@ -108,12 +110,8 @@ const createTradingMaterial = async (req, res, next) => {
       data: {
         firmName: normFirm,
         productName: productName.trim(),
-        unit: unit || '',
         opStock: parseFloat(opStock) || 0,
         opStockDate: opStockDate ? new Date(opStockDate) : null,
-        stockAdjustment: parseFloat(stockAdjustment) || 0,
-        currentLevel: parseFloat(opStock) || 0,
-        sNo: sNo ? parseInt(sNo, 10) : null,
       },
     });
 
@@ -128,23 +126,20 @@ const createTradingMaterial = async (req, res, next) => {
 const updateTradingMaterial = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { unit, opStock, opStockDate, stockAdjustment, sNo } = req.body;
+    const { opStock, opStockDate } = req.body;
 
-    const existing = await prisma.inventoryTradingMaterial.findUnique({ where: { id } });
+    const existing = await prisma.inventoryTradingMaterial.findUnique({ where: { id: parseInt(id, 10) } });
     if (!existing) {
       res.status(404);
       throw new Error('Trading material item not found');
     }
 
-    const updateData = {};
-    if (unit !== undefined) updateData.unit = unit;
+    const updateData = { updatedAt: new Date() };
     if (opStock !== undefined) updateData.opStock = parseFloat(opStock);
     if (opStockDate !== undefined) updateData.opStockDate = opStockDate ? new Date(opStockDate) : null;
-    if (stockAdjustment !== undefined) updateData.stockAdjustment = parseFloat(stockAdjustment);
-    if (sNo !== undefined) updateData.sNo = parseInt(sNo, 10);
 
     const updated = await prisma.inventoryTradingMaterial.update({
-      where: { id },
+      where: { id: parseInt(id, 10) },
       data: updateData,
     });
 
@@ -159,7 +154,7 @@ const updateTradingMaterial = async (req, res, next) => {
 const deleteTradingMaterial = async (req, res, next) => {
   try {
     const { id } = req.params;
-    await prisma.inventoryTradingMaterial.delete({ where: { id } });
+    await prisma.inventoryTradingMaterial.delete({ where: { id: parseInt(id, 10) } });
     res.json({ success: true, message: 'Item deleted successfully' });
   } catch (error) {
     next(error);

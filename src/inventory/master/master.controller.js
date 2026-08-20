@@ -89,7 +89,7 @@ const listMasterRows = async (req, res, next) => {
   try {
     const [rawMaterials, finishedGoods, tradingMaterials] = await Promise.all([
       prisma.inventoryRawMaterial.findMany({ orderBy: { createdAt: 'desc' } }),
-      prisma.inventoryFinishedGoods.findMany({ orderBy: { createdAt: 'desc' } }),
+      prisma.inventoryFinishGoods.findMany({ orderBy: { createdAt: 'desc' } }),
       prisma.inventoryTradingMaterial.findMany({ orderBy: { createdAt: 'desc' } }),
     ]);
 
@@ -100,7 +100,6 @@ const listMasterRows = async (req, res, next) => {
       firmName: r.firmName,
       unit: r.unit || 'MT',
       opStock: r.opStock,
-      productRate: r.productRate,
       category: 'Raw Material',
     }));
 
@@ -109,7 +108,6 @@ const listMasterRows = async (req, res, next) => {
       itemName: r.productName,
       rawMaterialName: r.productName,
       firmName: r.firmName,
-      unit: r.unit || 'MT',
       opStock: r.opStock,
       category: 'Trading Material',
     }));
@@ -134,7 +132,7 @@ const listMasterRows = async (req, res, next) => {
 // @route   POST /api/inventory/master
 const createMasterEntry = async (req, res, next) => {
   try {
-    const { itemName, rawMaterialName, productName, firmName, unit, productRate, opStock, type, vendorName } = req.body;
+    const { itemName, rawMaterialName, productName, firmName, unit, opStock, vendorName } = req.body;
     const name = (itemName || rawMaterialName || productName || vendorName || '').trim();
     if (!name) {
       res.status(400);
@@ -143,22 +141,20 @@ const createMasterEntry = async (req, res, next) => {
 
     const firm = (firmName || 'PMMPL').trim();
 
-    const entry = await prisma.inventoryRawMaterial.upsert({
-      where: {
-        firmName_itemName: {
+    const existing = await prisma.inventoryRawMaterial.findFirst({
+      where: { firmName: firm, itemName: name },
+    });
+
+    const entry =
+      existing ||
+      (await prisma.inventoryRawMaterial.create({
+        data: {
           firmName: firm,
           itemName: name,
-        }
-      },
-      update: {},
-      create: {
-        firmName: firm,
-        itemName: name,
-        unit: unit || 'MT',
-        productRate: productRate ? parseFloat(productRate) : 0,
-        opStock: opStock ? parseFloat(opStock) : 0,
-      }
-    });
+          unit: unit || 'MT',
+          opStock: opStock ? parseFloat(opStock) : 0,
+        },
+      }));
 
     res.status(201).json({ success: true, data: entry });
   } catch (error) {

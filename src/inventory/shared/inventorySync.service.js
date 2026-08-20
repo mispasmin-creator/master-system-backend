@@ -400,8 +400,54 @@ async function getPurchaseReturns(firmName, dateRange = {}) {
   return returnsMap;
 }
 
+/**
+ * Sums the signed stock_adjustment rows for one item ('Factory +' adds,
+ * 'Factory -' subtracts) — the real schema's only source of "movement"
+ * for a master row, since op_stock is a plain baseline with no other
+ * running-total columns. Used to derive actual/current level on read.
+ */
+async function getStockAdjustmentTotal(materialType, firmName, itemName) {
+  const rows = await prisma.inventoryStockAdjustment.findMany({
+    where: {
+      materialType,
+      firmName: normalizeFirmName(firmName),
+      itemName,
+    },
+    select: { qty: true, status: true },
+  });
+
+  return rows.reduce((sum, row) => {
+    const qty = Number(row.qty) || 0;
+    return row.status === 'Factory -' ? sum - qty : sum + qty;
+  }, 0);
+}
+
+/**
+ * Same as getStockAdjustmentTotal but for every item of a material type in
+ * one query — avoids N+1 queries when listing a whole master table.
+ */
+async function getStockAdjustmentTotals(materialType, firmName) {
+  const whereClause = { materialType };
+  if (firmName) whereClause.firmName = normalizeFirmName(firmName);
+
+  const rows = await prisma.inventoryStockAdjustment.findMany({
+    where: whereClause,
+    select: { itemName: true, qty: true, status: true },
+  });
+
+  const totals = {};
+  for (const row of rows) {
+    const key = normalizeItemKey(row.itemName);
+    const qty = Number(row.qty) || 0;
+    const signedQty = row.status === 'Factory -' ? -qty : qty;
+    totals[key] = (totals[key] || 0) + signedQty;
+  }
+  return totals;
+}
+
 module.exports = {
   normalizeFirmName,
+  normalizeItemKey,
   getRawMaterialReceipts,
   getRawMaterialRates,
   getProductionConsumption,
@@ -410,4 +456,6 @@ module.exports = {
   getFinishedGoodPendingOrders,
   getMaterialReturns,
   getPurchaseReturns,
+  getStockAdjustmentTotal,
+  getStockAdjustmentTotals,
 };
