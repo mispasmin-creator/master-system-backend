@@ -21,6 +21,7 @@ const STAGES = {
   rectify: { model: 'purchaseAARectify', relation: 'aaRectifies' },
   reaudit: { model: 'purchaseAAReAudit', relation: 'aaReAudits' },
   'tally-entry': { model: 'purchaseAATallyEntry', relation: 'aaTallyEntries' },
+  rechecking: { custom: true },
   'bill-entry': { model: 'purchaseAABillEntry', relation: 'aaBillEntries' },
 };
 
@@ -156,6 +157,7 @@ const listData = async (req, res, next) => {
     const rectify = [];
     const reaudit = [];
     const tallyEntry = [];
+    const rechecking = [];
     const billEntry = [];
     const history = [];
 
@@ -172,6 +174,7 @@ const listData = async (req, res, next) => {
       const rectifyDone = m.aaRectifies.some((r) => r.status === 'Done');
       const reAuditDone = m.aaReAudits.some((r) => r.status === 'Done');
       const tallyEntryDone = m.aaTallyEntries.some((t) => t.status === 'Done');
+      const recheckingDone = m.actionType === 'RECHECKING_APPROVED';
 
       const l = m.lift;
       let isReadyForAudit = true;
@@ -185,8 +188,9 @@ const listData = async (req, res, next) => {
       if (!hasAudit && isReadyForAudit) audit.push({ ...toRow(m), currentStage: 'AUDIT' });
       if (auditNotDone && !hasRectify) rectify.push({ ...toRow(m), currentStage: 'RECTIFY' });
       if (rectifyDone && !hasReAudit) reaudit.push({ ...toRow(m), currentStage: 'REAUDIT' });
-      if ((auditDone || reAuditDone) && !hasTallyEntry) tallyEntry.push({ ...toRow(m), currentStage: 'TALLY_ENTRY' });
-      if (tallyEntryDone && !hasBillEntry) billEntry.push({ ...toRow(m), currentStage: 'BILL_ENTRY' });
+      if ((auditDone || reAuditDone) && !tallyEntryDone) tallyEntry.push({ ...toRow(m), currentStage: 'TALLY_ENTRY' });
+      if (tallyEntryDone && !recheckingDone && !hasBillEntry) rechecking.push({ ...toRow(m), currentStage: 'RECHECKING' });
+      if (tallyEntryDone && recheckingDone && !hasBillEntry) billEntry.push({ ...toRow(m), currentStage: 'BILL_ENTRY' });
       if (hasHistory) history.push({ ...toRow(m), currentStage: 'HISTORY' });
     }
 
@@ -218,7 +222,7 @@ const listData = async (req, res, next) => {
     console.log(`Total audits: ${audit.length}`);
     res.json({
       success: true,
-      data: { audit, rectify, reaudit, tallyEntry, billEntry, history },
+      data: { audit, rectify, reaudit, tallyEntry, rechecking, billEntry, history },
     });
   } catch (error) {
     next(error);
@@ -300,6 +304,49 @@ const submitStage = async (req, res, next) => {
     }
 
     const { status, remarks } = req.body;
+
+    if (stageKey === 'rechecking') {
+      if (status === 'Done') {
+        await prisma.purchaseMismatch.update({
+          where: { id: mismatchId },
+          data: {
+            actionType: 'RECHECKING_APPROVED',
+            status: 'Rechecking Approved',
+            remarks: remarks || mismatch.remarks,
+          },
+        });
+        return res.status(201).json({ success: true, message: 'Rechecking approved' });
+      } else {
+        // Option A: Reject sends back to Tally Entry
+        await prisma.purchaseAATallyEntry.updateMany({
+          where: { mismatchId },
+          data: {
+            status: 'Not Done',
+            remarks: remarks ? `Rejected in Rechecking: ${remarks}` : 'Rejected in Rechecking',
+          },
+        });
+        await prisma.purchaseMismatch.update({
+          where: { id: mismatchId },
+          data: {
+            actionType: 'RECHECKING_REJECTED',
+            status: 'Rechecking Rejected',
+            remarks: remarks || mismatch.remarks,
+          },
+        });
+        return res.status(201).json({ success: true, message: 'Rechecking rejected - returned to Tally Entry' });
+      }
+    }
+
+    if (stageKey === 'tally-entry') {
+      // Clear any prior rechecking rejection state when resubmitting tally entry
+      await prisma.purchaseMismatch.update({
+        where: { id: mismatchId },
+        data: {
+          actionType: null,
+          status: status === 'Done' ? 'Tally Entry Done' : 'Tally Entry Pending',
+        },
+      });
+    }
 
     const created = await prisma[stage.model].create({
       data: {
