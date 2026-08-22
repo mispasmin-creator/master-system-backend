@@ -92,10 +92,14 @@ const submit = async (req, res, next) => {
         });
         if (!dispatch) continue;
 
+        const billCopyStr = typeof invoiceCopy === 'object' && invoiceCopy?.url
+          ? invoiceCopy.url
+          : String(invoiceCopy || '');
+
         const data = {
-          billNumber: invoiceNo,
+          billNumber: String(invoiceNo),
           billDate: new Date(invoiceDate),
-          billCopy: invoiceCopy,
+          billCopy: billCopyStr,
         };
 
         const invoiceRow = await upsertStageAndStampParent(tx, {

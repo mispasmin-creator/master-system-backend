@@ -43,6 +43,7 @@ services:
       - .env
     volumes:
       - ./uploads:/app/uploads
+      - ./src:/app/src
     environment:
       - NODE_ENV=production
       # Overrides the .env DATABASE_URL: "db" is the compose service hostname on

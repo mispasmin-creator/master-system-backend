@@ -56,41 +56,59 @@ const mapIndentToPoRow = (indent, vendorMap) => {
   const vendorName = ma.approvedVendorName || '';
   const contact = vendorMap[vendorName?.trim()] || {};
 
+  // Find the slot for the approved vendor in threeParty (1, 2, or 3)
+  let slot = 1;
+  if (tp.vendorName1 && tp.vendorName1.trim() === vendorName.trim()) slot = 1;
+  else if (tp.vendorName2 && tp.vendorName2.trim() === vendorName.trim()) slot = 2;
+  else if (tp.vendorName3 && tp.vendorName3.trim() === vendorName.trim()) slot = 3;
+
+  const quotationNumber = tp[`quotationNumber${slot}`] || tp.quotationNumber1 || '';
+  const quotationDate = tp[`quotationDate${slot}`] || tp.quotationDate1;
+  const advancePercentage = tp[`advancePercentage${slot}`] ?? null;
+  const paymentTerms = ma.approvedPaymentTerm || tp[`paymentTerm${slot}`] || tp.paymentTerm1 || '1 DAY';
+  const transportType = po?.transportType || ma.transportType4 || tp[`transportType${slot}`] || tp.transportType1 || 'FOR';
+  const packaging = po?.packaging || ma.packaging || tp[`packaging${slot}`] || tp.packaging1 || '';
+  const expectedDate = ma.expectedDate4 || tp[`expectedDate${slot}`] || indent.expectedRequirementDate;
+
   return {
     id: indent.id,
     supabaseId: indent.id,
     firmName: indent.firmName || '',
     vendorName,
     rawMaterialName: indent.material || '',
-    approvedQty: Number(po?.approvedQty ?? hod.approvedQty ?? 0),
-    approvedRate: Number(ma.approvedRate ?? tp.rate1 ?? 0),
-    quotationNumber: tp.quotationNumber1 || '',
-    quotationDate: toDateInput(tp.quotationDate1),
+    typeOfIndent: indent.typeOfIndent || '',
+    indentQuantity: indent.quantity,
+    approvedQty: Number(po?.approvedQty ?? hod.approvedQty ?? indent.quantity ?? 0),
+    approvedRate: Number(ma.approvedRate ?? tp[`rate${slot}`] ?? tp.rate1 ?? 0),
+    quotationNumber,
+    quotationDate: toDateInput(quotationDate),
+    paymentTerms,
+    advancePercentage,
     // reference: Actual2 (PO created) / Planned2 (ready for PO)
     poTimestamp: po?.createdAt ? po.createdAt.toISOString() : '',
     planned: ma.createdAt ? ma.createdAt.toISOString() : '',
     notes: po?.poNotes || indent.notes || '',
-    supplierAddress: '',
+    supplierAddress: contact.address || '',
     supplierGstin: contact.gstNumber || '',
     supplierEmail: contact.email || '',
-    alumina: ma.aluminaPercent ?? '',
-    iron: ma.ironPercent ?? '',
-    sio2: ma.sio2Percent ?? '',
-    cao: ma.caoPercent ?? '',
-    ap: ma.apPercentAge ?? '',
-    bd: ma.bdPercentAge ?? '',
-    fineness: ma.fineness ?? '',
-    packaging: po?.packaging || ma.packaging || '',
+    alumina: ma.aluminaPercent ?? tp[`alumina${slot}`] ?? '',
+    iron: ma.ironPercent ?? tp[`iron${slot}`] ?? '',
+    sio2: ma.sio2Percent ?? tp[`sio2${slot}`] ?? '',
+    cao: ma.caoPercent ?? tp[`cao${slot}`] ?? '',
+    ap: ma.apPercentAge ?? tp[`ap${slot}`] ?? '',
+    bd: ma.bdPercentAge ?? tp[`bd${slot}`] ?? '',
+    fineness: ma.fineness ?? tp[`fineness${slot}`] ?? '',
+    packaging,
     poFile: po?.poCopy || '',
-    advanceToBePaid: po?.advanceToBePaid || '',
+    advanceToBePaid: po?.advanceToBePaid || (advancePercentage && Number(advancePercentage) > 0 ? 'yes' : 'no'),
     toBePaidAmount: po?.toBePaidAmount ?? '',
     whenToBePaid: toDateInput(po?.whenToBePaidAmount),
-    transportType: po?.transportType || ma.transportType4 || '',
+    transportType,
     dest: '',
-    poDate: toDateInput(po?.createdAt),
+    poDate: toDateInput(po?.createdAt) || toDateInput(new Date()),
     deliveryDate: po?.leadTimeToLiftDays
       ? String(po.leadTimeToLiftDays).split(' ')[0]
-      : '',
+      : toDateInput(expectedDate),
     poNumber: po?.poNumber || '',
     uom: indent.uom || 'MT',
   };
@@ -161,7 +179,7 @@ const listPoHistory = async (req, res, next) => {
       const indent = row.indent || {};
       const poId = row.poNumber || 'Draft';
       const vendorName = row.vendorName || 'N/A';
-      const firmName = indent.firmName || 'N/A';
+      const firmName = indent.firmName || '';
       const key = `${poId}_${vendorName}_${firmName}`;
 
       if (!grouped[key]) {
@@ -184,6 +202,25 @@ const listPoHistory = async (req, res, next) => {
       }
       if (indent.material && !grouped[key].items.includes(indent.material)) {
         grouped[key].items.push(indent.material);
+      }
+      let poItemsArray = [];
+      if (Array.isArray(row.poItems)) {
+        poItemsArray = row.poItems;
+      } else if (typeof row.poItems === 'string') {
+        try {
+          const parsed = JSON.parse(row.poItems);
+          if (Array.isArray(parsed)) poItemsArray = parsed;
+        } catch (_) {}
+      } else if (row.poItems && typeof row.poItems === 'object') {
+        poItemsArray = [row.poItems];
+      }
+
+      for (const it of poItemsArray) {
+        if (it && typeof it === 'object' && it.material && !grouped[key].items.includes(it.material)) {
+          grouped[key].items.push(it.material);
+        } else if (typeof it === 'string' && it.trim() && !grouped[key].items.includes(it.trim())) {
+          grouped[key].items.push(it.trim());
+        }
       }
     }
 

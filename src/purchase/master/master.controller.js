@@ -103,6 +103,12 @@ const getAllOptions = async (req, res, next) => {
         // columns (they lived on the reference wide "Master" table); default blank.
         rateType: String(r.rateType || '').trim(),
         rate: '',
+        gstNumber: String(r.gstNumber || '').trim(),
+        phoneNumber: String(r.phoneNumber || '').trim(),
+        email: String(r.email || '').trim(),
+        bankAccountNo: String(r.bankAccountNo || '').trim(),
+        ifscCode: String(r.ifscCode || '').trim(),
+        firmName: String(r.firmName || '').trim(),
       }))
       .filter((r) => r.name);
 
@@ -121,6 +127,12 @@ const getAllOptions = async (req, res, next) => {
       name,
       rateType: transporterMasterMap[name]?.rateType || '',
       rate: transporterMasterMap[name]?.rate || '',
+      gstNumber: transporterMasterMap[name]?.gstNumber || '',
+      phoneNumber: transporterMasterMap[name]?.phoneNumber || '',
+      email: transporterMasterMap[name]?.email || '',
+      bankAccountNo: transporterMasterMap[name]?.bankAccountNo || '',
+      ifscCode: transporterMasterMap[name]?.ifscCode || '',
+      firmName: transporterMasterMap[name]?.firmName || '',
     }));
 
     const firmNameMapping = {};

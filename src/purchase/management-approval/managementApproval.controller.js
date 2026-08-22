@@ -14,13 +14,14 @@ const listPending = async (req, res, next) => {
   try {
     const indents = await prisma.purchaseIndent.findMany({
       where: { factoryApproval: { isNot: null }, managementApproval: null },
-      include: { threeParty: true, factoryApproval: true },
+      include: { threeParty: true, factoryApproval: true, hodApproval: true },
       orderBy: { id: 'asc' },
     });
 
     const data = indents
       .map((indent) => ({
         ...indent,
+        approvedQty: indent.hodApproval?.approvedQty ?? indent.quantity ?? null,
         vendors: getVendorsFromThreeParty(indent.threeParty, indent.factoryApproval)
           .filter((v) => v.technicalTag)
           .sort(compareTechnicalTags),
@@ -47,6 +48,7 @@ const listHistory = async (req, res, next) => {
         managementApproval: true,
         threeParty: true,
         factoryApproval: true,
+        hodApproval: true,
         generatePo: { select: { id: true } },
       },
       orderBy: { id: 'asc' },
@@ -57,7 +59,12 @@ const listHistory = async (req, res, next) => {
       const approvedVendor = vendors.find(
         (v) => v.name === (indent.managementApproval.approvedVendorName || ''),
       );
-      return { ...indent, approvedTag: approvedVendor?.technicalTag || '', canRevert: !generatePo };
+      return {
+        ...indent,
+        approvedQty: indent.hodApproval?.approvedQty ?? indent.quantity ?? null,
+        approvedTag: approvedVendor?.technicalTag || '',
+        canRevert: !generatePo,
+      };
     });
 
     res.json({ success: true, data });

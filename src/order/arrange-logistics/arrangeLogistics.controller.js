@@ -109,6 +109,7 @@ const submit = async (req, res, next) => {
               allocatedQty: optionIdx === 0 ? remainingQty : 0,
               status: 'Pending Approval',
               sortOrder: productIdx * 10 + optionIdx,
+              productionOrderNo: receipt.orderNumberOfProduction || null,
             },
           });
           splits.push(split);

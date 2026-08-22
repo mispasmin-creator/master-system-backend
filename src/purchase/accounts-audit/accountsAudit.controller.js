@@ -35,6 +35,7 @@ const mismatchInclude = {
   aaTallyEntries: true,
   aaBillEntries: true,
   auditHistories: true,
+  debitNotes: true,
 };
 
 const toRow = (m) => {
@@ -69,8 +70,8 @@ const toRow = (m) => {
     dateOfReceiving: '',
     poRate: '',
     totalFreight: m.totalFreight != null ? String(m.totalFreight) : '',
-    debitAmount: '',
-    debitNoteUrl: '',
+    debitAmount: m.debitNotes?.[0]?.debitAmount != null ? String(m.debitNotes[0].debitAmount) : '',
+    debitNoteUrl: m.debitNotes?.[0]?.debitNoteUrl || '',
     status: m.status || '',
     remarks: m.remarks || '',
     auditStatus: m.aaAudits?.[0]?.status || '',

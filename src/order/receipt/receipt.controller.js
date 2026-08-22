@@ -21,7 +21,7 @@ const listReceipts = async (req, res, next) => {
   try {
     const rows = await prisma.orderReceipt.findMany({
       orderBy: { id: 'desc' },
-      include: { checkPo: true, receivedAccounts: true, checkDelivery: true },
+      include: { checkPo: true, receivedAccounts: true, checkDelivery: true, productionOrder: true },
     });
     res.json({ success: true, data: rows });
   } catch (error) {

@@ -13,6 +13,9 @@ const listPending = async (req, res, next) => {
       include: {
         invoice: true,
         receipt: true,
+        logistic: true,
+        loadMaterial: true,
+        wetmanEntry: true,
         deliveries: { include: { bilty: true } },
       },
       orderBy: { id: 'asc' },
@@ -40,7 +43,15 @@ const listHistory = async (req, res, next) => {
   try {
     const dispatches = await prisma.orderDispatch.findMany({
       where: { fullkitting: { isNot: null } },
-      include: { fullkitting: true },
+      include: {
+        fullkitting: true,
+        receipt: true,
+        invoice: true,
+        logistic: true,
+        loadMaterial: true,
+        wetmanEntry: true,
+        deliveries: { include: { bilty: true } },
+      },
       orderBy: { id: 'asc' },
     });
     res.json({ success: true, data: dispatches });
@@ -83,26 +94,54 @@ const submit = async (req, res, next) => {
       throw new Error('Status must be "Yes" or "No".');
     }
 
+    const existingDispatch = await prisma.orderDispatch.findUnique({
+      where: { id },
+      include: {
+        logistic: true,
+        wetmanEntry: true,
+        loadMaterial: true,
+        deliveries: { include: { bilty: true } },
+      },
+    });
+
+    if (!existingDispatch) {
+      res.status(404);
+      throw new Error('Dispatch not found.');
+    }
+
     let payload;
     if (status === 'Yes') {
-      if (!productName || !actualTruckQty || !transporterName || !truckNo) {
-        res.status(400);
-        throw new Error('Product Name, Actual Truck Qty, Transporter Name and Truck No. are required.');
-      }
-      const isExFactory = rateType === 'Ex Factory Transporter';
+      const finalProductName = productName || existingDispatch.productName || '';
+      const finalActualTruckQty = actualTruckQty
+        ? parseFloat(actualTruckQty)
+        : (existingDispatch.wetmanEntry?.actualTruckQty || existingDispatch.logistic?.actualTruckQty || existingDispatch.qtyToBeDispatched || 0);
+      const finalTransporterName = transporterName || existingDispatch.logistic?.transporterName || 'N/A';
+      const finalTruckNo = truckNo || existingDispatch.logistic?.truckNo || 'N/A';
+      const finalRateType = rateType || existingDispatch.logistic?.typeOfRate || 'Ex Factory Transporter';
+      const isExFactory = (finalRateType || '').toLowerCase().includes('ex factory');
+
+      const parsedRate = transporterRate != null && transporterRate !== ''
+        ? parseFloat(transporterRate)
+        : (existingDispatch.logistic?.transportRatePerMt || existingDispatch.logistic?.fixedAmount || 0);
+
+      const computedTotal = totalTransporterAmount != null && totalTransporterAmount !== ''
+        ? parseFloat(totalTransporterAmount)
+        : (existingDispatch.logistic?.typeOfRate === 'Per MT' ? (parsedRate * finalActualTruckQty) : (existingDispatch.logistic?.fixedAmount || null));
+
+      const finalBiltyNo = biltyNo || existingDispatch.logistic?.biltyNo || existingDispatch.deliveries?.[0]?.bilty?.biltyNo || null;
+      const finalBillImage = transporterBillImage || existingDispatch.deliveries?.[0]?.bilty?.biltyCopy || existingDispatch.wetmanEntry?.imageOfSlip || null;
+
       payload = {
         fullkittingStatus: 'Yes',
-        productName,
-        actualTruckQty: parseFloat(actualTruckQty),
-        transporterName,
-        truckNo,
-        fullkittingAmount: isExFactory ? 0 : (parseFloat(transporterRate) || null),
-        totalTransporterAmount: (rateType === 'Per MT' || rateType === 'Fixed')
-          ? (parseFloat(totalTransporterAmount) || null)
-          : (isExFactory ? 0 : null),
+        productName: finalProductName,
+        actualTruckQty: finalActualTruckQty,
+        transporterName: finalTransporterName,
+        truckNo: finalTruckNo,
+        fullkittingAmount: isExFactory ? 0 : parsedRate,
+        totalTransporterAmount: isExFactory ? 0 : computedTotal,
         fullkittingRemarks: remarks || null,
-        biltyNo: biltyNo || null,
-        transporterBillImage: transporterBillImage || null,
+        biltyNo: finalBiltyNo,
+        transporterBillImage: finalBillImage,
       };
     } else {
       payload = { fullkittingStatus: 'No' };
@@ -120,13 +159,13 @@ const submit = async (req, res, next) => {
 
       // Sync the Bilty No. onto every Delivery row for this dispatch — only
       // touches biltyNo, leaves an existing biltyCopy untouched.
-      if (status === 'Yes' && biltyNo) {
+      if (status === 'Yes' && payload.biltyNo) {
         const deliveries = await tx.orderDelivery.findMany({ where: { dispatchId: id } });
         for (const delivery of deliveries) {
           await tx.orderBilty.upsert({
             where: { deliveryId: delivery.id },
-            create: { deliveryId: delivery.id, biltyNo },
-            update: { biltyNo },
+            create: { deliveryId: delivery.id, biltyNo: payload.biltyNo },
+            update: { biltyNo: payload.biltyNo },
           });
         }
       }

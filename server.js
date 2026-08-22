@@ -11,6 +11,7 @@ dotenvExpand.expand(dotenv.config());
 
 // Initialize express app
 const app = express();
+console.log('App reloaded with productionOrder support:', Date.now());
 
 // Connect to Database
 connectDB();

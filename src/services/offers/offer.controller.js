@@ -100,16 +100,53 @@ const updateOffer = async (req, res) => {
 const convertOffer = async (req, res) => {
   try {
     const { id } = req.params;
-    const serviceFields = req.body;
+    const serviceFields = req.body || {};
 
-    const serviceJob = await convertOfferToService(id, serviceFields);
+    const offer = await prisma.serviceOffer.findFirst({
+      where: {
+        OR: [
+          { id },
+          { offerNo: id }
+        ]
+      }
+    });
 
-    await prisma.serviceOffer.update({
-      where: { id },
-      data: { status: 'Converted' }
-    }).catch(() => {});
+    if (!offer) {
+      return res.status(404).json({ success: false, error: `Offer '${id}' not found.` });
+    }
 
-    res.status(201).json({ success: true, data: serviceJob });
+    const convertAmount = parseFloat(serviceFields.amount) || 0;
+    if (convertAmount <= 0) {
+      return res.status(400).json({ success: false, error: 'Service job amount must be greater than 0.' });
+    }
+
+    const currentOutstanding = offer.outstanding !== undefined && offer.outstanding !== null
+      ? offer.outstanding
+      : Math.max(0, (offer.amount || 0) - (offer.amountPaid || 0));
+
+    if (convertAmount > currentOutstanding) {
+      return res.status(400).json({
+        success: false,
+        error: `Amount ₹${convertAmount} exceeds outstanding balance of ₹${currentOutstanding}.`
+      });
+    }
+
+    const serviceJob = await convertOfferToService(offer.id, serviceFields);
+
+    const newAmountPaid = Math.round(((offer.amountPaid || 0) + convertAmount) * 100) / 100;
+    const newOutstanding = Math.max(0, Math.round((currentOutstanding - convertAmount) * 100) / 100);
+    const newStatus = newOutstanding <= 0.001 ? 'Converted' : 'Pending';
+
+    const updatedOffer = await prisma.serviceOffer.update({
+      where: { id: offer.id },
+      data: {
+        amountPaid: newAmountPaid,
+        outstanding: newOutstanding,
+        status: newStatus
+      }
+    });
+
+    res.status(201).json({ success: true, data: serviceJob, offer: updatedOffer });
   } catch (err) {
     console.error('convertOffer error:', err);
     res.status(400).json({ success: false, error: err.message });

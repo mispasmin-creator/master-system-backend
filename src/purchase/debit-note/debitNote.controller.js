@@ -5,7 +5,20 @@ const num = (v) => {
   return Number.isFinite(n) ? n : null;
 };
 
-const mismatchInclude = { lift: true, debitNotes: true, purchaseReturns: true };
+const mismatchInclude = {
+  lift: {
+    include: {
+      indent: {
+        include: {
+          generatePo: true,
+          advancePayment: true,
+        },
+      },
+    },
+  },
+  debitNotes: true,
+  purchaseReturns: true,
+};
 
 // @desc    List mismatches/manual-returns pending a debit note + finalized ones
 // @route   GET /api/purchase/debit-note/data
@@ -48,6 +61,13 @@ const listData = async (req, res, next) => {
         status: m.status || '',
         purchaseReturnNo: m.purchaseReturns?.[0]?.purchaseReturnNo || '',
         timestamp: m.timestamp ? m.timestamp.toISOString() : '',
+        remarks: m.remarks || '',
+        advanceAmount: m.lift?.indent?.generatePo?.toBePaidAmount != null
+          ? String(m.lift.indent.generatePo.toBePaidAmount)
+          : (m.lift?.indent?.advancePayment ? 'Paid' : ''),
+        advanceDetails: m.lift?.indent?.generatePo?.advanceToBePaid
+          ? `${m.lift.indent.generatePo.advanceToBePaid} (₹${m.lift.indent.generatePo.toBePaidAmount || 0})`
+          : (m.lift?.indent?.generatePo?.toBePaidAmount != null ? `₹${m.lift.indent.generatePo.toBePaidAmount}` : ''),
       }));
 
     // Manual purchase returns that never got linked to a Mismatch — they
@@ -78,6 +98,9 @@ const listData = async (req, res, next) => {
       creditNoteUrl: r.creditNoteUrl || '',
       purchaseReturnNo: r.purchaseReturnNo || '',
       timestamp: r.timeStamp ? r.timeStamp.toISOString() : '',
+      remarks: r.remark || '',
+      advanceAmount: '',
+      advanceDetails: '',
     }));
 
     const pending = [...pendingFromMismatch, ...pendingFromReturns];
@@ -99,6 +122,8 @@ const listData = async (req, res, next) => {
       debitNoteUrl: d.debitNoteUrl || '',
       purchaseReturnNo: d.purchaseReturnNo || '',
       timestamp: d.createdAt ? d.createdAt.toISOString() : '',
+      advanceAmount: d.debitAmount != null ? String(d.debitAmount) : '',
+      advanceDetails: '',
     }));
 
     res.json({ success: true, data: { pending, history } });
@@ -118,10 +143,6 @@ const submitDebitNote = async (req, res, next) => {
     if (!debitAmount) {
       res.status(400);
       throw new Error('Please enter a Debit Amount.');
-    }
-    if (!debitNoteUrl) {
-      res.status(400);
-      throw new Error('Please upload a Debit Note image.');
     }
 
     let mismatchId = mismatchIdInput != null ? Number(mismatchIdInput) : null;
@@ -177,8 +198,20 @@ const submitDebitNote = async (req, res, next) => {
         actionType: 'Make Debit Note',
         remark: remarks || null,
         debitAmount: num(debitAmount),
-        debitNoteUrl,
+        debitNoteUrl: debitNoteUrl || null,
         purchaseReturnNo: purchaseReturnNo || null,
+      },
+    });
+
+    // Automatically log debit note creation into purchaseAuditHistory for AccountsAudit
+    await prisma.purchaseAuditHistory.create({
+      data: {
+        mismatchId,
+        liftId: mismatch.lift?.liftNo || (debitNote.id != null ? String(debitNote.id) : null),
+        liftNumber: mismatch.lift?.liftNo || (debitNote.id != null ? String(debitNote.id) : null),
+        firmName: mismatch.firmName || mismatch.lift?.firmName || null,
+        partyName: mismatch.partyName || mismatch.lift?.vendorName || null,
+        productName: mismatch.productName || mismatch.lift?.rawMaterialName || null,
       },
     });
 
