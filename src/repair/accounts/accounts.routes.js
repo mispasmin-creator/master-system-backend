@@ -1,9 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const { getAccountsData, updateAccountsAudit } = require('./accounts.controller');
+const { protect } = require('../../middleware/auth');
 
-router.get('/', getAccountsData);
-router.post('/:id', updateAccountsAudit);
-router.put('/:id', updateAccountsAudit);
+router.get('/', protect, getAccountsData);
+router.post('/:id', protect, updateAccountsAudit);
+router.put('/:id', protect, updateAccountsAudit);
 
 module.exports = router;

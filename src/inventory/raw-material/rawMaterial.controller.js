@@ -4,12 +4,14 @@ const {
   normalizeFirmName,
   normalizeItemKey,
   getRawMaterialReceipts,
-  getRawMaterialRates,
   getProductionConsumption,
-  getFinishedGoodDispatch,
   getPurchaseReturns,
   getStockAdjustmentTotals,
+  getCrushingFlows,
+  getSemiProductionFlows,
+  getRawMaterialSales,
 } = require('../shared/inventorySync.service');
+const { getRateCascade } = require('../shared/rateCascade.service');
 const { dailyConsumption, colour, stockTotal, optimumStockTotal, rawMaterialActualLevel } = require('../shared/inventoryFormulas');
 
 // @desc    Get Raw Material Inventory
@@ -30,31 +32,51 @@ const getRawMaterial = async (req, res, next) => {
       whereClause.itemName = { contains: search, mode: 'insensitive' };
     }
 
-    const [items, totalCount, liveReceipts, liveRates, liveConsumptions, liveSales, livePurchReturns, adjustmentTotals] =
-      await Promise.all([
-        prisma.inventoryRawMaterial.findMany({
-          where: whereClause,
-          orderBy: [{ firmName: 'asc' }, { itemName: 'asc' }],
-          skip,
-          take: limitNum,
-        }),
-        prisma.inventoryRawMaterial.count({ where: whereClause }),
-        getRawMaterialReceipts(normFirm || ''),
-        getRawMaterialRates(normFirm || ''),
-        getProductionConsumption(normFirm || ''),
-        getFinishedGoodDispatch(normFirm || ''),
-        getPurchaseReturns(normFirm || ''),
-        getStockAdjustmentTotals('raw_material', normFirm || undefined),
-      ]);
+    const [
+      items,
+      totalCount,
+      liveReceipts,
+      liveRates,
+      liveConsumptions,
+      liveSales,
+      livePurchReturns,
+      adjustmentTotals,
+      crushingFlows,
+      semiFlows,
+    ] = await Promise.all([
+      prisma.inventoryRawMaterial.findMany({
+        where: whereClause,
+        orderBy: [{ firmName: 'asc' }, { itemName: 'asc' }],
+        skip,
+        take: limitNum,
+      }),
+      prisma.inventoryRawMaterial.count({ where: whereClause }),
+      getRawMaterialReceipts(normFirm || ''),
+      getRateCascade(normFirm || ''),
+      getProductionConsumption(normFirm || ''),
+      getRawMaterialSales(normFirm || ''),
+      getPurchaseReturns(normFirm || ''),
+      getStockAdjustmentTotals('raw_material', normFirm || undefined),
+      getCrushingFlows(normFirm || ''),
+      getSemiProductionFlows(normFirm || ''),
+    ]);
 
     const formattedData = items.map((item) => {
       const normItemKey = normalizeItemKey(item.itemName);
       const purchaseQty = liveReceipts[normItemKey]?.quantity || 0;
-      const consumptionQty = liveConsumptions[normItemKey]?.quantity || 0;
       const salesQty = liveSales[normItemKey]?.quantity || 0;
       const purchReturnQty = livePurchReturns[normItemKey]?.quantity || 0;
       const liveRate = liveRates[normItemKey] || 0;
       const adjustmentQty = adjustmentTotals[normItemKey] || 0;
+
+      const consumptionQty =
+        (liveConsumptions[normItemKey]?.quantity || 0) +
+        (crushingFlows.consumption[normItemKey]?.quantity || 0) +
+        (semiFlows.consumption[normItemKey]?.quantity || 0);
+
+      const productionOutputQty =
+        (crushingFlows.production[normItemKey]?.quantity || 0) +
+        (semiFlows.production[normItemKey]?.quantity || 0);
 
       const actualLevel = rawMaterialActualLevel(
         item.opStock,
@@ -62,7 +84,8 @@ const getRawMaterial = async (req, res, next) => {
         purchaseQty,
         consumptionQty,
         purchReturnQty,
-        salesQty
+        salesQty,
+        productionOutputQty
       );
 
       const dailyCon = dailyConsumption(item.annuCon);
@@ -95,6 +118,7 @@ const getRawMaterial = async (req, res, next) => {
         purchase_system: purchaseQty,
         purchase_return: purchReturnQty,
         production_consumption: consumptionQty,
+        production_output: productionOutputQty,
         raw_material_sales: salesQty,
         created_at: item.createdAt,
         updated_at: item.updatedAt,

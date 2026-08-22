@@ -124,7 +124,12 @@ function tradingMaterialCurrentLevel(
 /**
  * Calculates Raw Material actual level.
  * Formula: op_stock + stock_adjustment + (purchase_receipts - purchase_return)
- *          - production_consumption - raw_material_sales
+ *          + production_output - production_consumption - raw_material_sales
+ *
+ * production_output covers raw-material-tracked items that are themselves
+ * produced rather than purchased — crushing outputs (fines/grains/etc.) and
+ * semi-finished goods, which get consumed further downstream the same way a
+ * purchased raw material would.
  */
 function rawMaterialActualLevel(
   opStock = 0,
@@ -132,13 +137,15 @@ function rawMaterialActualLevel(
   purchaseReceived = 0,
   consumption = 0,
   purchaseReturn = 0,
-  sales = 0
+  sales = 0,
+  productionOutput = 0
 ) {
   const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
   return (
     num(opStock) +
     num(stockAdjustment) +
-    num(purchaseReceived) -
+    num(purchaseReceived) +
+    num(productionOutput) -
     num(purchaseReturn) -
     num(consumption) -
     num(sales)

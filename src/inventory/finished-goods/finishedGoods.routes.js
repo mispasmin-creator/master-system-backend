@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../../middleware/auth');
+const { protect, requireSuperAdmin } = require('../../middleware/auth');
 const {
   getFinishedGoods,
   createFinishedGood,
@@ -13,7 +13,7 @@ router.route('/')
   .post(protect, createFinishedGood);
 
 router.route('/:id')
-  .put(protect, updateFinishedGood)
-  .delete(protect, deleteFinishedGood);
+  .put(protect, requireSuperAdmin, updateFinishedGood)
+  .delete(protect, requireSuperAdmin, deleteFinishedGood);
 
 module.exports = router;

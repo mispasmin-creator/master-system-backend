@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../../middleware/auth');
+const { protect, requireSuperAdmin } = require('../../middleware/auth');
 const { getAll, getOne, create, upsertByParent, update, remove } = require('./reaudit.controller');
 
 router.route('/')
@@ -11,7 +11,7 @@ router.put('/by-parent/:parentId', protect, upsertByParent);
 
 router.route('/:id')
   .get(protect, getOne)
-  .patch(protect, update)
-  .delete(protect, remove);
+  .patch(protect, requireSuperAdmin, update)
+  .delete(protect, requireSuperAdmin, remove);
 
 module.exports = router;

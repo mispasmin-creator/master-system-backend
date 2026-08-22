@@ -31,7 +31,7 @@ const comparePassword = async (enteredPassword, storedPassword) => {
 // @access  Public
 const registerUser = async (req, res, next) => {
   try {
-    const { username, email, name, password, role, page_access, firm_name } = req.body;
+    const { username, email, name, password, role, page_access, firm_name, is_active, isActive } = req.body;
     const targetUsername = username || email || name;
 
     if (!targetUsername || !password) {
@@ -50,6 +50,7 @@ const registerUser = async (req, res, next) => {
     }
 
     const hashedPassword = await hashPassword(password);
+    const activeStatus = is_active !== undefined ? Boolean(is_active) : (isActive !== undefined ? Boolean(isActive) : true);
 
     // Create user in the 'login' table
     const user = await prisma.login.create({
@@ -59,6 +60,8 @@ const registerUser = async (req, res, next) => {
         role: role || 'user',
         page_access: page_access || null,
         firm_name: firm_name || '',
+        name: name || null,
+        isActive: activeStatus,
       },
     });
 
@@ -67,11 +70,12 @@ const registerUser = async (req, res, next) => {
         _id: user.id,
         id: user.id,
         username: user.username,
-        name: user.username,
+        name: user.name || user.username,
         email: user.username,
         role: user.role,
         page_access: user.page_access,
         firm_name: user.firm_name,
+        is_active: user.isActive,
         token: generateToken(user.id),
       });
     } else {
@@ -89,7 +93,7 @@ const registerUser = async (req, res, next) => {
 const authUser = async (req, res, next) => {
   try {
     const { username, email, password } = req.body;
-    const targetUsername = username || email;
+    const targetUsername = (username || email || '').trim();
 
     if (!targetUsername || !password) {
       res.status(400);
@@ -101,28 +105,49 @@ const authUser = async (req, res, next) => {
       where: { username: targetUsername },
     });
 
-    if (user && (await comparePassword(password, user.password))) {
-      const updatedUser = await prisma.login.update({
-        where: { id: user.id },
-        data: { last_login: new Date() },
-      });
-
-      res.json({
-        _id: updatedUser.id,
-        id: updatedUser.id,
-        username: updatedUser.username,
-        name: updatedUser.username,
-        email: updatedUser.username,
-        role: updatedUser.role,
-        page_access: updatedUser.page_access,
-        firm_name: updatedUser.firm_name,
-        last_login: updatedUser.last_login,
-        token: generateToken(updatedUser.id),
-      });
-    } else {
+    if (!user) {
       res.status(401);
       throw new Error('Invalid email/username or password');
     }
+
+    // Check if user account is deactivated
+    if (user.isActive === false) {
+      return res.status(403).json({
+        message: 'Your account has been deactivated. Please contact administrator.',
+      });
+    }
+
+    // Validate password
+    const isPasswordValid = await comparePassword(password, user.password);
+    if (!isPasswordValid) {
+      res.status(401);
+      throw new Error('Invalid email/username or password');
+    }
+
+    // Auto-upgrade plaintext legacy password to bcrypt hash on successful login
+    let updateData = { last_login: new Date() };
+    if (user.password === password) {
+      updateData.password = await hashPassword(password);
+    }
+
+    const updatedUser = await prisma.login.update({
+      where: { id: user.id },
+      data: updateData,
+    });
+
+    res.json({
+      _id: updatedUser.id,
+      id: updatedUser.id,
+      username: updatedUser.username,
+      name: updatedUser.name || updatedUser.username,
+      email: updatedUser.username,
+      role: updatedUser.role,
+      page_access: updatedUser.page_access,
+      firm_name: updatedUser.firm_name,
+      last_login: updatedUser.last_login,
+      is_active: updatedUser.isActive,
+      token: generateToken(updatedUser.id),
+    });
   } catch (error) {
     next(error);
   }
@@ -144,16 +169,21 @@ const getUserProfile = async (req, res, next) => {
     });
 
     if (user) {
+      if (user.isActive === false) {
+        return res.status(403).json({ message: 'Account is deactivated' });
+      }
+
       res.json({
         _id: user.id,
         id: user.id,
         username: user.username,
-        name: user.username,
+        name: user.name || user.username,
         email: user.username,
         role: user.role,
         page_access: user.page_access,
         firm_name: user.firm_name,
         last_login: user.last_login,
+        is_active: user.isActive,
       });
     } else {
       res.status(404);
@@ -201,14 +231,26 @@ const updatePassword = async (req, res, next) => {
 // stays unchanged except for swapping Supabase calls for these endpoints.
 // ---------------------------------------------------------------------------
 
+// Canonical 3-tier roles: 'super_admin' | 'admin' | 'user'. An explicit role
+// always wins; 'super_admin'/'super admin' is recognized as its own tier now
+// (it used to collapse into 'admin' with no extra privilege — see
+// requireSuperAdmin in middleware/auth.js for what that tier actually grants).
+const normalizeExplicitRole = (explicitRole) => {
+  const r = String(explicitRole || '').trim().toLowerCase().replace(/[\s-]/g, '_');
+  if (r === 'super_admin' || r === 'superadmin') return 'super_admin';
+  if (r === 'admin') return 'admin';
+  if (r === 'user') return 'user';
+  return null;
+};
+
 const deriveRole = (pages, explicitRole) => {
-  if (explicitRole && typeof explicitRole === 'string' && explicitRole.trim()) {
-    return explicitRole.trim().toLowerCase() === 'admin' ? 'admin' : 'user';
-  }
+  const normalized = normalizeExplicitRole(explicitRole);
+  if (normalized) return normalized;
   if (!pages) return 'user';
   if (typeof pages === 'string') {
     const trimmed = pages.trim().toLowerCase();
-    if (trimmed === 'all' || trimmed === 'super admin' || trimmed === 'admin') return 'admin';
+    if (trimmed === 'super admin' || trimmed === 'super_admin') return 'super_admin';
+    if (trimmed === 'all' || trimmed === 'admin') return 'admin';
     try {
       const parsed = JSON.parse(pages);
       return deriveRole(parsed);
@@ -217,21 +259,47 @@ const deriveRole = (pages, explicitRole) => {
     }
   }
   if (Array.isArray(pages)) {
-    return pages.some(
-      (p) =>
-        typeof p === 'string' &&
-        (p.toLowerCase() === 'all' || p.toLowerCase() === 'admin' || p.toLowerCase() === 'super admin')
-    )
+    if (pages.some((p) => typeof p === 'string' && ['super admin', 'super_admin'].includes(p.toLowerCase())))
+      return 'super_admin';
+    return pages.some((p) => typeof p === 'string' && (p.toLowerCase() === 'all' || p.toLowerCase() === 'admin'))
       ? 'admin'
       : 'user';
   }
   if (typeof pages === 'object') {
-    if (pages.role === 'admin' || pages.isAdmin === true || pages.isSuperAdmin === true) return 'admin';
+    if (pages.isSuperAdmin === true || pages.role === 'super_admin') return 'super_admin';
+    if (pages.role === 'admin' || pages.isAdmin === true) return 'admin';
     if (Array.isArray(pages.permissions) && pages.permissions.includes('admin')) return 'admin';
     if (pages.admin || pages['admin']) return 'admin';
     return 'user';
   }
   return 'user';
+};
+
+// Enforces "exactly one Super Admin at all times": rejects promoting/creating
+// a second one, and rejects demoting or deleting the last remaining one.
+const assertSingleSuperAdminInvariant = async ({ targetUserId = null, newRole, isDelete = false }) => {
+  const existing = await prisma.login.findMany({ where: { role: 'super_admin' }, select: { id: true } });
+  const existingIds = new Set(existing.map((u) => u.id));
+
+  if (isDelete || (newRole && newRole !== 'super_admin')) {
+    // Losing super_admin status (via delete or demotion) — only allowed if
+    // this user isn't the last one, or isn't a super_admin at all.
+    if (targetUserId != null && existingIds.has(targetUserId) && existingIds.size <= 1) {
+      const err = new Error('Cannot remove the only Super Admin. Promote another user to Super Admin first.');
+      err.statusCode = 400;
+      throw err;
+    }
+    return;
+  }
+
+  if (newRole === 'super_admin') {
+    const otherSuperAdmins = [...existingIds].filter((id) => id !== targetUserId);
+    if (otherSuperAdmins.length > 0) {
+      const err = new Error('A Super Admin already exists. Demote the current Super Admin before promoting another.');
+      err.statusCode = 400;
+      throw err;
+    }
+  }
 };
 
 // "Firm Name" comes in as "all" (string) or an array of firm keys; the login
@@ -266,6 +334,8 @@ const toDisplayUser = (u) => ({
   Pages: u.page_access || '',
   role: u.role,
   last_login: u.last_login,
+  is_active: u.isActive !== undefined ? u.isActive : true,
+  isActive: u.isActive !== undefined ? u.isActive : true,
 });
 
 // @desc    List all users from the login table (User Management grid)
@@ -312,6 +382,15 @@ const createLoginUser = async (req, res, next) => {
       req.body.firmName ??
       req.body.firms;
     const name = req.body['Name'] ?? req.body.name ?? null;
+    const activeStatus =
+      req.body.is_active !== undefined
+        ? Boolean(req.body.is_active)
+        : req.body.isActive !== undefined
+        ? Boolean(req.body.isActive)
+        : true;
+
+    const role = deriveRole(pages, explicitRole);
+    await assertSingleSuperAdminInvariant({ targetUserId: null, newRole: role });
 
     const user = await prisma.login.create({
       data: {
@@ -320,12 +399,14 @@ const createLoginUser = async (req, res, next) => {
         name,
         firm_name: encodeFirm(firmName),
         page_access: encodePages(pages),
-        role: deriveRole(pages, explicitRole),
+        role,
+        isActive: activeStatus,
       },
     });
 
     res.status(201).json(toDisplayUser(user));
   } catch (error) {
+    if (error.statusCode) res.status(error.statusCode);
     next(error);
   }
 };
@@ -362,7 +443,11 @@ const updateLoginUser = async (req, res, next) => {
         : req.body.pageFirms !== undefined
         ? req.body.pageFirms
         : existing.page_access;
-    const explicitRole = req.body.role || req.body.Role;
+    // Falls back to the existing role (not re-derived from pages) when the
+    // caller doesn't explicitly send one, so an unrelated field edit (name,
+    // firm, active status) can never silently change — or accidentally
+    // demote — someone's role tier.
+    const explicitRole = req.body.role || req.body.Role || existing.role;
     const firmName =
       req.body['Firm Name'] !== undefined
         ? req.body['Firm Name']
@@ -380,6 +465,13 @@ const updateLoginUser = async (req, res, next) => {
         ? req.body.name
         : existing.name;
 
+    const activeStatus =
+      req.body.is_active !== undefined
+        ? Boolean(req.body.is_active)
+        : req.body.isActive !== undefined
+        ? Boolean(req.body.isActive)
+        : existing.isActive;
+
     // Uniqueness check if username changed
     if (username && username !== existing.username) {
       const clash = await prisma.login.findUnique({ where: { username } });
@@ -396,6 +488,9 @@ const updateLoginUser = async (req, res, next) => {
       passwordToStore = await hashPassword(password);
     }
 
+    const role = deriveRole(pages, explicitRole);
+    await assertSingleSuperAdminInvariant({ targetUserId: id, newRole: role });
+
     const user = await prisma.login.update({
       where: { id },
       data: {
@@ -404,12 +499,14 @@ const updateLoginUser = async (req, res, next) => {
         name: name,
         firm_name: encodeFirm(firmName),
         page_access: encodePages(pages),
-        role: deriveRole(pages, explicitRole),
+        role,
+        isActive: activeStatus,
       },
     });
 
     res.json(toDisplayUser(user));
   } catch (error) {
+    if (error.statusCode) res.status(error.statusCode);
     next(error);
   }
 };
@@ -424,9 +521,11 @@ const deleteLoginUser = async (req, res, next) => {
       res.status(400);
       throw new Error('Invalid user id');
     }
+    await assertSingleSuperAdminInvariant({ targetUserId: id, isDelete: true });
     await prisma.login.delete({ where: { id } });
     res.json({ success: true });
   } catch (error) {
+    if (error.statusCode) res.status(error.statusCode);
     next(error);
   }
 };

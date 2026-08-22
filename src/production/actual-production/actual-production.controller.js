@@ -79,41 +79,10 @@ const create = async (req, res, next) => {
       },
     });
 
-    try {
-      const { applyMovement } = require('../../inventory/shared/inventoryMovement.service');
-      const order = data.jobCard?.order;
-      if (order && order.productName && data.quantityFg) {
-        await applyMovement({
-          category: 'FinishedGoods',
-          firmName: order.firmName,
-          itemName: order.productName,
-          movementType: 'PRODUCTION',
-          quantity: data.quantityFg,
-          sourceModule: 'production',
-          sourceTable: 'ProductionActualRun',
-          sourceId: String(data.id),
-        });
-      }
-
-      if (data.materials && Array.isArray(data.materials)) {
-        for (const mat of data.materials) {
-          if (mat.materialName && mat.quantity) {
-            await applyMovement({
-              category: 'RawMaterial',
-              firmName: order?.firmName || '',
-              itemName: mat.materialName,
-              movementType: 'CONSUMPTION',
-              quantity: mat.quantity,
-              sourceModule: 'production',
-              sourceTable: 'ProductionActualMaterial',
-              sourceId: String(mat.id),
-            });
-          }
-        }
-      }
-    } catch (hookErr) {
-      console.error('Inventory movement sync hook error (ProductionActualRun):', hookErr.message);
-    }
+    // Raw material consumption and finished-goods production for this run are
+    // picked up live by getProductionConsumption()/getFinishedGoodProduction()
+    // (inventory/shared/inventorySync.service.js) — no ledger write is needed
+    // here; writing one in addition would double-count the same quantity.
 
     res.status(201).json({ success: true, data });
   } catch (error) {

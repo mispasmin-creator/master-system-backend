@@ -71,7 +71,7 @@ const submitUnloadApproval = async (req, res, next) => {
       throw new Error('receiptId is required');
     }
 
-    const updatedReceipt = await prisma.purchaseReceipt.update({
+    await prisma.purchaseReceipt.update({
       where: { id: Number(receiptId) },
       data: {
         unloadApprovalStatus: unloadApprovalStatus || null,
@@ -82,27 +82,10 @@ const submitUnloadApproval = async (req, res, next) => {
       include: { lift: true },
     });
 
-    if (
-      unloadApprovalStatus &&
-      unloadApprovalStatus.toLowerCase() === 'completed' &&
-      updatedReceipt.lift
-    ) {
-      try {
-        const { applyMovement } = require('../../inventory/shared/inventoryMovement.service');
-        await applyMovement({
-          category: 'RawMaterial',
-          firmName: updatedReceipt.lift.firmName,
-          itemName: updatedReceipt.lift.rawMaterialName,
-          movementType: 'RECEIPT',
-          quantity: updatedReceipt.actualQuantity || updatedReceipt.lift.liftingQty || 0,
-          sourceModule: 'purchase',
-          sourceTable: 'PurchaseReceipt',
-          sourceId: String(updatedReceipt.id),
-        });
-      } catch (err) {
-        console.error('Inventory movement sync hook error:', err.message);
-      }
-    }
+    // Raw Material's Actual Level picks this receipt up live via
+    // getRawMaterialReceipts() once unloadApprovalStatus === 'Completed' — no
+    // ledger write needed here (see receipt.controller.js for the matching
+    // note on the 'not required' path).
 
     res.json({ success: true });
   } catch (error) {
@@ -130,14 +113,24 @@ const revertUnloadApproval = async (req, res, next) => {
       throw new Error('Cannot revert. This lift has already been processed in Mismatch. Please revert it from Mismatch first.');
     }
 
-    // Delete unload approval record
-    const existingUnloadApproval = await prisma.purchaseUnloadApproval.findUnique({ where: { liftId: liftIdNum } });
-    if (!existingUnloadApproval) {
+    // The approval decision actually lives on PurchaseReceipt (see
+    // submitUnloadApproval above) — there is no separate PurchaseUnloadApproval
+    // row to delete; reset the receipt's approval fields instead.
+    const existingReceipt = await prisma.purchaseReceipt.findUnique({ where: { liftId: liftIdNum } });
+    if (!existingReceipt || !existingReceipt.unloadApprovalStatus) {
       res.status(404);
       throw new Error('Unload Approval record not found for this lift');
     }
 
-    await prisma.purchaseUnloadApproval.delete({ where: { liftId: liftIdNum } });
+    await prisma.purchaseReceipt.update({
+      where: { liftId: liftIdNum },
+      data: {
+        unloadApprovalStatus: null,
+        unloadApprovalRemarks: null,
+        unloadApprovalBy: null,
+        unloadApprovalTrigger: null,
+      },
+    });
 
     res.status(200).json({
       success: true,

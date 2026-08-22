@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../../middleware/auth');
+const { protect, requireSuperAdmin } = require('../../middleware/auth');
 const {
   listMasterRows,
   getAllOptions,
@@ -12,7 +12,7 @@ const {
 router.get('/all-options', getAllOptions);
 router.get('/', listMasterRows);
 router.post('/', protect, createMasterEntry);
-router.patch('/:id', protect, updateMasterEntry);
-router.delete('/:id', protect, deleteMasterEntry);
+router.patch('/:id', protect, requireSuperAdmin, updateMasterEntry);
+router.delete('/:id', protect, requireSuperAdmin, deleteMasterEntry);
 
 module.exports = router;

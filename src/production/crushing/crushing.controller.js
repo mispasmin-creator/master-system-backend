@@ -1,4 +1,5 @@
 const { prisma } = require('../../config/db');
+const { normalizeFirmName } = require('../../inventory/shared/inventorySync.service');
 
 // @desc    Get all crushing
 // @route   GET /api/production/crushing
@@ -52,6 +53,9 @@ const sanitizeCrushingPayload = (body) => {
   }
   if ('semiActualRunId' in sanitized && !sanitized.semiActualRunId) {
     sanitized.semiActualRunId = null;
+  }
+  if ('firmName' in sanitized && sanitized.firmName) {
+    sanitized.firmName = normalizeFirmName(sanitized.firmName);
   }
   return { outputs, sanitizedRunData: sanitized };
 };
