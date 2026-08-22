@@ -17,6 +17,7 @@ model Login {
   firm_name   String
   last_login  DateTime?
   name        String?
+  isActive    Boolean   @default(true) @map("is_active")
 
   @@map("login")
 }
@@ -1615,6 +1616,7 @@ model ProductionCrushingRun {
   id                   String                     @id @default(uuid())
   crushingItemId       String?                    @map("crushing_item_id")
   semiActualRunId      String?                    @map("semi_actual_run_id")
+  firmName             String?                    @map("firm_name")
   dateOfProduction     DateTime?                  @map("date_of_production")
   inputQty             Float?                     @map("input_qty")
   machineHours         Float?                     @map("machine_hours")

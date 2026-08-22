@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../../middleware/auth');
+const { protect, requireSuperAdmin } = require('../../middleware/auth');
 const { getAll, getOne, create, update } = require('./logistics.controller');
 
 router.route('/')
@@ -9,6 +9,6 @@ router.route('/')
 
 router.route('/:id')
   .get(protect, getOne)
-  .patch(protect, update);
+  .patch(protect, requireSuperAdmin, update);
 
 module.exports = router;

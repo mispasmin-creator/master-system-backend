@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../../middleware/auth');
+const { protect, requireSuperAdmin } = require('../../middleware/auth');
 const {
   getTradingMaterial,
   createTradingMaterial,
@@ -13,7 +13,7 @@ router.route('/')
   .post(protect, createTradingMaterial);
 
 router.route('/:id')
-  .put(protect, updateTradingMaterial)
-  .delete(protect, deleteTradingMaterial);
+  .put(protect, requireSuperAdmin, updateTradingMaterial)
+  .delete(protect, requireSuperAdmin, deleteTradingMaterial);
 
 module.exports = router;

@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { protect } = require('../../middleware/auth');
+const { protect, requireSuperAdmin } = require('../../middleware/auth');
 const {
   listRows,
   listPoHistory,
@@ -12,7 +12,7 @@ const {
 
 router.get('/rows', listRows);
 router.get('/po-history', listPoHistory);
-router.post('/po-history/edit', protect, editPoGroup);
+router.post('/po-history/edit', protect, requireSuperAdmin, editPoGroup);
 router.get('/preview-po-number', previewPoNumber);
 router.post('/allocate-po-number', protect, allocatePoNumber);
 router.post('/submit', protect, submit);

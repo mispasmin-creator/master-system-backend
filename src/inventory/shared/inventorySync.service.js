@@ -29,8 +29,23 @@ function normalizeItemKey(value) {
 }
 
 /**
+ * A receipt has actually landed in stock once unload approval either isn't
+ * required for it, or has been marked Completed. Both flags live directly on
+ * PurchaseReceipt (see purchase/unload-approval/unloadApproval.controller.js
+ * — it writes to PurchaseReceipt, never to the separate, always-empty
+ * PurchaseUnloadApproval table), so this checks PurchaseReceipt's own fields
+ * rather than joining a relation nothing ever populates.
+ */
+function isReceiptStockedIn(receipt) {
+  if (!receipt) return false;
+  if (String(receipt.unloadApprovalRequired || 'No').toLowerCase() !== 'yes') return true;
+  return String(receipt.unloadApprovalStatus || '').toLowerCase() === 'completed';
+}
+
+/**
  * Returns raw material receipt totals grouped by rawMaterialName from
- * PurchaseLift + PurchaseReceipt + PurchaseUnloadApproval (only complete unload approvals).
+ * PurchaseLift + PurchaseReceipt, counting only receipts that have actually
+ * landed in stock (see isReceiptStockedIn above).
  */
 async function getRawMaterialReceipts(firmName, dateRange = {}) {
   const targetFirm = normalizeFirmName(firmName);
@@ -39,25 +54,18 @@ async function getRawMaterialReceipts(firmName, dateRange = {}) {
     receipt: {
       isNot: null,
     },
-    unloadApproval: {
-      unloadApprovalStatus: {
-        equals: 'Completed',
-        mode: 'insensitive',
-      },
-    },
   };
 
   if (dateRange.startDate || dateRange.endDate) {
-    whereClause.timestamp = {};
-    if (dateRange.startDate) whereClause.timestamp.gte = new Date(dateRange.startDate);
-    if (dateRange.endDate) whereClause.timestamp.lte = new Date(dateRange.endDate);
+    whereClause.receipt.dateOfReceiving = {};
+    if (dateRange.startDate) whereClause.receipt.dateOfReceiving.gte = new Date(dateRange.startDate);
+    if (dateRange.endDate) whereClause.receipt.dateOfReceiving.lte = new Date(dateRange.endDate);
   }
 
   const lifts = await prisma.purchaseLift.findMany({
     where: whereClause,
     include: {
       receipt: true,
-      unloadApproval: true,
     },
   });
 
@@ -67,6 +75,8 @@ async function getRawMaterialReceipts(firmName, dateRange = {}) {
     if (targetFirm && normalizeFirmName(lift.firmName) !== targetFirm) {
       continue;
     }
+    if (!isReceiptStockedIn(lift.receipt)) continue;
+
     const matName = lift.rawMaterialName;
     if (!matName) continue;
 
@@ -401,6 +411,145 @@ async function getPurchaseReturns(firmName, dateRange = {}) {
 }
 
 /**
+ * Returns crushing consumption (input material) and production (fines/grains/
+ * other outputs) totals, scoped by ProductionCrushingRun.firmName.
+ */
+async function getCrushingFlows(firmName) {
+  const targetFirm = normalizeFirmName(firmName);
+
+  const runs = await prisma.productionCrushingRun.findMany({
+    include: { crushingItem: true, outputs: true },
+  });
+
+  const consumption = {};
+  const production = {};
+
+  for (const run of runs) {
+    if (targetFirm && run.firmName && normalizeFirmName(run.firmName) !== targetFirm) {
+      continue;
+    }
+
+    const inputName = run.crushingItem?.inputProductName;
+    const inputQty = run.inputQty || 0;
+    if (inputName && inputQty) {
+      const key = normalizeItemKey(inputName);
+      if (!consumption[key]) consumption[key] = { itemName: inputName, quantity: 0 };
+      consumption[key].quantity += inputQty;
+    }
+
+    for (const output of run.outputs || []) {
+      if (!output.outputName || !output.quantity) continue;
+      const key = normalizeItemKey(output.outputName);
+      if (!production[key]) production[key] = { itemName: output.outputName, quantity: 0 };
+      production[key].quantity += output.quantity;
+    }
+  }
+
+  return { consumption, production };
+}
+
+/**
+ * Returns semi-finished-production consumption (raw/semi materials used) and
+ * production (semi-finished good made) totals, scoped by firm via
+ * semiActualRun -> semiJobCard -> semiOrder.firmName.
+ */
+async function getSemiProductionFlows(firmName) {
+  const targetFirm = normalizeFirmName(firmName);
+
+  const runs = await prisma.productionSemiActualRun.findMany({
+    include: {
+      materials: true,
+      semiJobCard: { include: { semiOrder: true } },
+    },
+  });
+
+  const consumption = {};
+  const production = {};
+
+  for (const run of runs) {
+    const order = run.semiJobCard?.semiOrder;
+    if (targetFirm && order?.firmName && normalizeFirmName(order.firmName) !== targetFirm) {
+      continue;
+    }
+
+    for (const mat of run.materials || []) {
+      if (!mat.materialName || !mat.quantity) continue;
+      const key = normalizeItemKey(mat.materialName);
+      if (!consumption[key]) consumption[key] = { itemName: mat.materialName, quantity: 0 };
+      consumption[key].quantity += mat.quantity;
+    }
+
+    const producedName = order?.semiGoodName;
+    const producedQty = run.qtyProduced || 0;
+    if (producedName && producedQty) {
+      const key = normalizeItemKey(producedName);
+      if (!production[key]) production[key] = { itemName: producedName, quantity: 0 };
+      production[key].quantity += producedQty;
+    }
+
+    // A run can additionally be flagged as yielding a distinct final product
+    // (e.g. the semi-finished good is itself finished off in the same run).
+    if (run.isEndProduct && run.endProductName && run.endProductQty) {
+      const key = normalizeItemKey(run.endProductName);
+      if (!production[key]) production[key] = { itemName: run.endProductName, quantity: 0 };
+      production[key].quantity += run.endProductQty;
+    }
+  }
+
+  return { consumption, production };
+}
+
+/**
+ * Returns raw material sales totals from completed RmSales orders, grouped by
+ * productName. RmSales runs its own separate stock ledger (RmSalesInventory/
+ * RmSalesProduct) via src/rmsales/invoice/invoice.controller.js, but the main
+ * Inventory raw-material dashboard needs the same completed-sale quantities
+ * to report an accurate "raw material sales" figure.
+ */
+async function getRawMaterialSales(firmName) {
+  const targetFirm = normalizeFirmName(firmName);
+
+  const orders = await prisma.rmSalesOrder.findMany({
+    where: { status: 'Completed' },
+    select: { firmName: true, productName: true, qty: true },
+  });
+
+  const salesMap = {};
+
+  for (const order of orders) {
+    if (targetFirm && normalizeFirmName(order.firmName) !== targetFirm) continue;
+    if (!order.productName) continue;
+
+    const key = normalizeItemKey(order.productName);
+    if (!salesMap[key]) salesMap[key] = { productName: order.productName, quantity: 0 };
+    salesMap[key].quantity += order.qty || 0;
+  }
+
+  return salesMap;
+}
+
+/**
+ * Auto-generated movement rows (written by the old, now-removed
+ * applyMovement() hooks in purchase/production/order controllers) tag
+ * `remark` with a "<sourceModule>:<sourceTable>#<id> (<movementType>)"
+ * pattern — e.g. "purchase:PurchaseReceipt#6 (RECEIPT)". Genuine manual
+ * entries (from stock-adjustment/stockAdjustment.controller.js) always have
+ * either a null/blank remark or free-text the user typed, never this shape.
+ * Excluding rows matching this pattern keeps the Stock Adjustment ledger to
+ * manual entries only, and stops any such row (old data, or a stray future
+ * one) from double-counting against the live purchase/production/sales
+ * aggregators, which already account for those events on their own.
+ */
+const AUTO_GENERATED_REMARK_PREFIXES = ['purchase:', 'production:', 'order:', 'manual:'];
+
+function excludeAutoGeneratedMovements(whereClause = {}) {
+  return {
+    ...whereClause,
+    NOT: AUTO_GENERATED_REMARK_PREFIXES.map((prefix) => ({ remark: { startsWith: prefix } })),
+  };
+}
+
+/**
  * Sums the signed stock_adjustment rows for one item ('Factory +' adds,
  * 'Factory -' subtracts) — the real schema's only source of "movement"
  * for a master row, since op_stock is a plain baseline with no other
@@ -408,11 +557,11 @@ async function getPurchaseReturns(firmName, dateRange = {}) {
  */
 async function getStockAdjustmentTotal(materialType, firmName, itemName) {
   const rows = await prisma.inventoryStockAdjustment.findMany({
-    where: {
+    where: excludeAutoGeneratedMovements({
       materialType,
       firmName: normalizeFirmName(firmName),
       itemName,
-    },
+    }),
     select: { qty: true, status: true },
   });
 
@@ -431,7 +580,7 @@ async function getStockAdjustmentTotals(materialType, firmName) {
   if (firmName) whereClause.firmName = normalizeFirmName(firmName);
 
   const rows = await prisma.inventoryStockAdjustment.findMany({
-    where: whereClause,
+    where: excludeAutoGeneratedMovements(whereClause),
     select: { itemName: true, qty: true, status: true },
   });
 
@@ -447,7 +596,9 @@ async function getStockAdjustmentTotals(materialType, firmName) {
 
 module.exports = {
   normalizeFirmName,
+  excludeAutoGeneratedMovements,
   normalizeItemKey,
+  isReceiptStockedIn,
   getRawMaterialReceipts,
   getRawMaterialRates,
   getProductionConsumption,
@@ -456,6 +607,9 @@ module.exports = {
   getFinishedGoodPendingOrders,
   getMaterialReturns,
   getPurchaseReturns,
+  getCrushingFlows,
+  getSemiProductionFlows,
+  getRawMaterialSales,
   getStockAdjustmentTotal,
   getStockAdjustmentTotals,
 };

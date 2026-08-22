@@ -145,6 +145,12 @@ const submitReceipt = async (req, res, next) => {
       },
     });
 
+    // Raw Material's Actual Level picks this receipt up live via
+    // getRawMaterialReceipts() (inventory/shared/inventorySync.service.js) —
+    // once unloadApprovalRequired isn't 'Yes' or the unload approval is later
+    // marked Completed. No ledger write is needed here; writing one in
+    // addition to the live aggregation would double-count the same quantity.
+
     // Reference flags a quantity mismatch whenever the billed (truck) quantity
     // and the physically received quantity diverge by more than a tolerance
     // band — 5% for a vendor-billed rate, 10% for a transporter "to pay" rate
